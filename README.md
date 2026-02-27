@@ -1,1 +1,89 @@
-# plugin-filepanel-fs
+# Nuclr File Panel - Local Filesystem
+
+Official Nuclr core plugin that provides local filesystem roots (drives/mount points) to the file panel.
+
+## Overview
+
+- Plugin ID: `dev.nuclr.plugin.core.panel.fs`
+- Name: `Local Filesystem Panel`
+- Version: `1.0.0`
+- Provider class: `dev.nuclr.plugin.core.panel.fs.LocalFilePanelProvider`
+- License: Apache-2.0
+
+This plugin registers a `FilePanelProvider` that exposes one root per entry returned by `FileSystems.getDefault().getRootDirectories()`:
+
+- Windows: typically `C:\`, `D:\`, etc.
+- Linux/macOS: typically `/`
+
+## Features
+
+- Adds a `local` file panel provider.
+- Displays provider name as `Local Filesystem`.
+- Enumerates roots dynamically from the host OS.
+- Uses priority `0`.
+
+## Requirements
+
+- Java 21
+- Maven 3.9+ (recommended)
+- Nuclr plugin SDK dependency:
+  - `dev.nuclr:plugins-sdk:1.0.0`
+
+## Build
+
+Build and package:
+
+```bash
+mvn clean package
+```
+
+Create the detached signature too:
+
+```bash
+mvn clean verify -Djarsigner.storepass=<your-password>
+```
+
+## Output Artifacts
+
+After build/verify, artifacts are placed in `target/`:
+
+- `filepanel-fs-1.0.0.jar`
+- `filepanel-fs-1.0.0.zip` (plugin package)
+- `filepanel-fs-1.0.0.zip.sig` (created during `verify`)
+
+Plugin ZIP contents:
+
+- `plugin.json`
+- `filepanel-fs-1.0.0.jar`
+- `lib/` runtime dependencies
+
+## Signing Notes
+
+The current Maven `verify` phase expects a PKCS#12 keystore at:
+
+`C:/nuclr/key/nuclr-signing.p12`
+
+with alias `nuclr` and password supplied by:
+
+- Maven property: `jarsigner.storepass`
+
+If you do not have this key in your environment, run `mvn clean package` (without `verify`) or update `pom.xml` signing configuration for your setup.
+
+## Install in Nuclr
+
+1. Build `filepanel-fs-1.0.0.zip`.
+2. Copy the ZIP (and `.sig` if required by your runtime) to your Nuclr plugins directory.
+3. Restart Nuclr.
+
+## Repository Layout
+
+```text
+src/main/java/dev/nuclr/plugin/core/panel/fs/LocalFilePanelProvider.java
+src/main/resources/plugin.json
+src/assembly/plugin.xml
+pom.xml
+```
+
+## Development Notes
+
+- `deploy.bat` appears to contain artifact names from another plugin (`quick-view-3d`) and should be adjusted before use in this repo.
