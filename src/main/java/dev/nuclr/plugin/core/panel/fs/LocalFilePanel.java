@@ -24,8 +24,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
-import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -85,6 +85,26 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
 				openSelectedEntry();
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("LEFT"), "pageUpSelection");
+		table.getActionMap().put("pageUpSelection", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				moveSelectionByPage(-1);
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("RIGHT"), "pageDownSelection");
+		table.getActionMap().put("pageDownSelection", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				moveSelectionByPage(1);
 			}
 		});
 
@@ -184,6 +204,25 @@ public class LocalFilePanel extends JPanel {
 		if (entry.directory()) {
 			showDirectory(entry.path());
 		}
+	}
+
+	private void moveSelectionByPage(int direction) {
+		int rowCount = model.getRowCount();
+		if (rowCount == 0) {
+			return;
+		}
+
+		int currentRow = table.getSelectedRow();
+		if (currentRow < 0) {
+			currentRow = 0;
+		}
+
+		int visibleRows = Math.max(1, table.getVisibleRect().height / Math.max(1, table.getRowHeight()));
+		int targetRow = currentRow + (visibleRows * direction);
+		targetRow = Math.max(0, Math.min(rowCount - 1, targetRow));
+
+		table.setRowSelectionInterval(targetRow, targetRow);
+		table.scrollRectToVisible(table.getCellRect(targetRow, 0, true));
 	}
 
 	private void updateStatus() {
