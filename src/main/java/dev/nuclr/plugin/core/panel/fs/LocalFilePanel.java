@@ -17,6 +17,7 @@ import java.util.Locale;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -25,6 +26,8 @@ import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
 public class LocalFilePanel extends JPanel {
@@ -37,6 +40,8 @@ public class LocalFilePanel extends JPanel {
 	private final JLabel statusLabel;
 	private final JLabel pathLabel;
 	private final LocalFilePanelModel model;
+	private final Border inactiveBorder;
+	private final Border activeBorder;
 
 	private Path currentDirectory;
 
@@ -45,9 +50,18 @@ public class LocalFilePanel extends JPanel {
 		table = new JTable(model);
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
+		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
+		activeBorder = BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(
+						UIManager.getColor("Table.selectionBackground") != null
+								? UIManager.getColor("Table.selectionBackground")
+								: UIManager.getColor("Component.focusColor") != null
+										? UIManager.getColor("Component.focusColor")
+										: java.awt.Color.GRAY),
+				BorderFactory.createEmptyBorder(3, 3, 3, 3));
 
 		setLayout(new BorderLayout(0, 4));
-		setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+		setBorder(inactiveBorder);
 
 		pathLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
 		statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
@@ -91,6 +105,22 @@ public class LocalFilePanel extends JPanel {
 		add(pathLabel, BorderLayout.NORTH);
 		add(new JScrollPane(table), BorderLayout.CENTER);
 		add(statusLabel, BorderLayout.SOUTH);
+	}
+
+	public void focusTable() {
+		if (model.getRowCount() > 0 && table.getSelectedRow() < 0) {
+			table.setRowSelectionInterval(0, 0);
+		}
+		table.requestFocusInWindow();
+	}
+
+	public void setPluginFocused(boolean focused) {
+		setBorder(focused ? activeBorder : inactiveBorder);
+		if (focused) {
+			focusTable();
+		}
+		revalidate();
+		repaint();
 	}
 
 	public void showDirectory(Path path) {

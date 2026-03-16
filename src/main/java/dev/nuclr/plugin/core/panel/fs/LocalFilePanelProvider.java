@@ -140,4 +140,16 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		info.setDocUrl("https://nuclr.dev/plugins/core/filepanel-fs.html");
 		return info;
 	}
+
+	@Override
+	public void onFocusGained() {
+		((LocalFilePanel) getPanel()).setPluginFocused(true);
+	}
+
+	@Override
+	public void onFocusLost() {
+		if (panel != null) {
+			panel.setPluginFocused(false);
+		}
+	}
 }
