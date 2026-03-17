@@ -1,7 +1,6 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.event.MouseAdapter;
@@ -14,10 +13,8 @@ import java.nio.file.attribute.DosFileAttributes;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -38,22 +35,13 @@ public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final Set<String> TEXT_EXTENSIONS = Set.of("txt", "md");
-	private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "jpg");
-	private static final Set<String> AUDIO_EXTENSIONS = Set.of("mp3", "wav");
-	private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "jar");
-
 	private final JTable table;
 	private final JLabel statusLabel;
 	private final JLabel pathLabel;
 	private final LocalFilePanelModel model;
 	private final Border inactiveBorder;
 	private final Border activeBorder;
-	private final Color hiddenFileColor;
-	private final Color textFileColor;
-	private final Color imageFileColor;
-	private final Color audioFileColor;
-	private final Color archiveFileColor;
+	private final FileNameHighlighter fileNameHighlighter;
 
 	private Path currentDirectory;
 
@@ -71,11 +59,7 @@ public class LocalFilePanel extends JPanel {
 										? UIManager.getColor("Component.focusColor")
 										: java.awt.Color.GRAY),
 				BorderFactory.createEmptyBorder(3, 3, 3, 3));
-		hiddenFileColor = new Color(120, 120, 120);
-		textFileColor = new Color(60, 150, 90);
-		imageFileColor = new Color(40, 110, 180);
-		audioFileColor = new Color(140, 70, 170);
-		archiveFileColor = new Color(185, 110, 25);
+		fileNameHighlighter = new FileNameHighlighter(table.getForeground());
 
 		setLayout(new BorderLayout(0, 4));
 		setBorder(inactiveBorder);
@@ -316,34 +300,10 @@ public class LocalFilePanel extends JPanel {
 			if (component instanceof JLabel label) {
 				label.setHorizontalAlignment(column == 1 ? SwingConstants.RIGHT : SwingConstants.LEFT);
 				if (!isSelected && column == 0 && panel != null) {
-					label.setForeground(panel.colorFor(entry));
+					label.setForeground(panel.fileNameHighlighter.colorFor(entry));
 				}
 			}
 			return component;
 		}
-	}
-
-	private Color colorFor(LocalFilePanelModel.Entry entry) {
-		if (entry.parent() || entry.directory()) {
-			return table.getForeground();
-		}
-		if (entry.hidden() || entry.system()) {
-			return hiddenFileColor;
-		}
-
-		String extension = extensionOf(entry.name());
-		if (TEXT_EXTENSIONS.contains(extension)) {
-			return textFileColor;
-		}
-		if (IMAGE_EXTENSIONS.contains(extension)) {
-			return imageFileColor;
-		}
-		if (AUDIO_EXTENSIONS.contains(extension)) {
-			return audioFileColor;
-		}
-		if (ARCHIVE_EXTENSIONS.contains(extension)) {
-			return archiveFileColor;
-		}
-		return table.getForeground();
 	}
 }
