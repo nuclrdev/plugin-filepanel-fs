@@ -1,6 +1,7 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.event.MouseAdapter;
@@ -9,11 +10,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.DosFileAttributes;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -34,7 +38,10 @@ public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final String PARENT_LABEL = "..";
+	private static final Set<String> TEXT_EXTENSIONS = Set.of("txt", "md");
+	private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "jpg");
+	private static final Set<String> AUDIO_EXTENSIONS = Set.of("mp3", "wav");
+	private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "jar");
 
 	private final JTable table;
 	private final JLabel statusLabel;
@@ -42,6 +49,11 @@ public class LocalFilePanel extends JPanel {
 	private final LocalFilePanelModel model;
 	private final Border inactiveBorder;
 	private final Border activeBorder;
+	private final Color hiddenFileColor;
+	private final Color textFileColor;
+	private final Color imageFileColor;
+	private final Color audioFileColor;
+	private final Color archiveFileColor;
 
 	private Path currentDirectory;
 
@@ -59,6 +71,11 @@ public class LocalFilePanel extends JPanel {
 										? UIManager.getColor("Component.focusColor")
 										: java.awt.Color.GRAY),
 				BorderFactory.createEmptyBorder(3, 3, 3, 3));
+		hiddenFileColor = new Color(120, 120, 120);
+		textFileColor = new Color(60, 150, 90);
+		imageFileColor = new Color(40, 110, 180);
+		audioFileColor = new Color(140, 70, 170);
+		archiveFileColor = new Color(185, 110, 25);
 
 		setLayout(new BorderLayout(0, 4));
 		setBorder(inactiveBorder);
@@ -181,6 +198,8 @@ public class LocalFilePanel extends JPanel {
 
 	private LocalFilePanelModel.Entry toEntry(Path path) {
 		boolean directory = Files.isDirectory(path);
+		boolean hidden = isHidden(path);
+		boolean system = isSystem(path);
 		long sizeBytes = 0L;
 		FileTime modifiedTime = null;
 		try {
@@ -192,7 +211,7 @@ public class LocalFilePanel extends JPanel {
 			// Keep listing usable even when some attributes cannot be read.
 		}
 		String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
-		return new LocalFilePanelModel.Entry(path, name, directory, false, sizeBytes, modifiedTime);
+		return new LocalFilePanelModel.Entry(path, name, directory, false, hidden, system, sizeBytes, modifiedTime);
 	}
 
 	private void openSelectedEntry() {
@@ -254,6 +273,30 @@ public class LocalFilePanel extends JPanel {
 		return String.format(Locale.ROOT, unitIndex == 0 ? "%.0f %s" : "%.1f %s", value, units[unitIndex]);
 	}
 
+	private static boolean isHidden(Path path) {
+		try {
+			return Files.isHidden(path);
+		} catch (IOException ex) {
+			return false;
+		}
+	}
+
+	private static boolean isSystem(Path path) {
+		try {
+			return Files.readAttributes(path, DosFileAttributes.class).isSystem();
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+
+	private static String extensionOf(String name) {
+		int dot = name.lastIndexOf('.');
+		if (dot < 0 || dot == name.length() - 1) {
+			return "";
+		}
+		return name.substring(dot + 1).toLowerCase(Locale.ROOT);
+	}
+
 	private static final class EntryRenderer extends DefaultTableCellRenderer {
 		private static final long serialVersionUID = 1L;
 
@@ -266,13 +309,41 @@ public class LocalFilePanel extends JPanel {
 				int row,
 				int column) {
 			Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+			LocalFilePanel panel = (LocalFilePanel) SwingUtilities.getAncestorOfClass(LocalFilePanel.class, table);
 			LocalFilePanelModel model = (LocalFilePanelModel) table.getModel();
 			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
 			component.setFont(component.getFont().deriveFont(entry.directory() ? Font.BOLD : Font.PLAIN));
 			if (component instanceof JLabel label) {
 				label.setHorizontalAlignment(column == 1 ? SwingConstants.RIGHT : SwingConstants.LEFT);
+				if (!isSelected && column == 0 && panel != null) {
+					label.setForeground(panel.colorFor(entry));
+				}
 			}
 			return component;
 		}
+	}
+
+	private Color colorFor(LocalFilePanelModel.Entry entry) {
+		if (entry.parent() || entry.directory()) {
+			return table.getForeground();
+		}
+		if (entry.hidden() || entry.system()) {
+			return hiddenFileColor;
+		}
+
+		String extension = extensionOf(entry.name());
+		if (TEXT_EXTENSIONS.contains(extension)) {
+			return textFileColor;
+		}
+		if (IMAGE_EXTENSIONS.contains(extension)) {
+			return imageFileColor;
+		}
+		if (AUDIO_EXTENSIONS.contains(extension)) {
+			return audioFileColor;
+		}
+		if (ARCHIVE_EXTENSIONS.contains(extension)) {
+			return archiveFileColor;
+		}
+		return table.getForeground();
 	}
 }
