@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JComponent;
@@ -64,7 +65,14 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 
 	@Override
 	public List<MenuResource> getMenuItems(PluginPathResource source) {
-		return List.of();
+		List<MenuResource> items = new ArrayList<>();
+		boolean isDirectory = source != null && source.getPath() != null && Files.isDirectory(source.getPath());
+
+		addDefaultMenuItems(items, source, isDirectory);
+		addAltMenuItems(items, source);
+		addCtrlMenuItems(items, source);
+		addShiftMenuItems(items, source, isDirectory);
+		return items;
 	}
 
 	@Override
@@ -139,6 +147,54 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		info.setPageUrl("https://nuclr.dev/plugins/core/filepanel-fs.html");
 		info.setDocUrl("https://nuclr.dev/plugins/core/filepanel-fs.html");
 		return info;
+	}
+
+	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
+		return new LocalMenuResource(name, keyStroke, new LocalMenuActionEvent(actionId, source));
+	}
+
+	private static void addDefaultMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+		items.add(menu("Help", "F1", "help", source));
+		items.add(menu("User Menu", "F2", "userMenu", source));
+		items.add(menu("View", "F3", "view", source));
+		items.add(menu("Edit", "F4", "edit", source));
+		items.add(menu("Copy", "F5", "copy", source));
+		items.add(menu(isDirectory ? "Move" : "Rename/Move", "F6", "move", source));
+		items.add(menu("Make Folder", "F7", "makeFolder", source));
+		items.add(menu("Delete", "F8", "delete", source));
+		items.add(menu("Quit", "F10", "quit", source));
+		items.add(menu("Plugins", "F11", "plugins", source));
+		items.add(menu("Screen", "F12", "screen", source));
+	}
+
+	private static void addAltMenuItems(List<MenuResource> items, PluginPathResource source) {
+		items.add(menu("Left", "Alt+F1", "left", source));
+		items.add(menu("Right", "Alt+F2", "right", source));
+		items.add(menu("Find", "Alt+F7", "find", source));
+		items.add(menu("History", "Alt+F8", "history", source));
+		items.add(menu("Fullscreen", "Alt+F9", "fullscreen", source));
+		items.add(menu("Tree", "Alt+F10", "tree", source));
+		items.add(menu("View History", "Alt+F11", "viewHistory", source));
+		items.add(menu("Folder History", "Alt+F12", "folderHistory", source));
+	}
+
+	private static void addCtrlMenuItems(List<MenuResource> items, PluginPathResource source) {
+		items.add(menu("Hide Left", "Ctrl+F1", "hideLeft", source));
+		items.add(menu("Hide Right", "Ctrl+F2", "hideRight", source));
+		items.add(menu("Sort by name", "Ctrl+F3", "sortByName", source));
+		items.add(menu("Sort by extension", "Ctrl+F4", "sortByExtension", source));
+		items.add(menu("Sort by modified date", "Ctrl+F5", "sortByModifiedDate", source));
+		items.add(menu("Sort by size", "Ctrl+F6", "sortBySize", source));
+		items.add(menu("Unsort", "Ctrl+F7", "unsort", source));
+		items.add(menu("Sort by create date", "Ctrl+F8", "sortByCreateDate", source));
+		items.add(menu("Sort by access time", "Ctrl+F9", "sortByAccessTime", source));
+	}
+
+	private static void addShiftMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+		items.add(menu("Create archive", "Shift+F1", "createArchive", source));
+		items.add(menu("Extract archive", "Shift+F2", "extractArchive", source));
+		items.add(menu("Create file", "Shift+F4", "createFile", source));
+		items.add(menu("Selection up", "Shift+F12", "selectionUp", source));
 	}
 
 	@Override
