@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JComponent;
@@ -17,7 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.nuclr.plugin.ApplicationPluginContext;
 import dev.nuclr.plugin.MenuResource;
 import dev.nuclr.plugin.PanelProviderPlugin;
-import dev.nuclr.plugin.PluginInfo;
+import dev.nuclr.plugin.PluginManifest;
 import dev.nuclr.plugin.PluginPathResource;
 import dev.nuclr.plugin.event.PluginEvent;
 import dev.nuclr.plugin.event.PluginThemeUpdatedEvent;
@@ -35,8 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventListener {
 
-	private static final PluginInfo FALLBACK_PLUGIN_INFO = buildFallbackPluginInfo();
-
 	private ApplicationPluginContext context;
 	private LocalFilePanel panel;
 	private boolean focused;
@@ -45,17 +42,16 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	// BasePlugin
 	// -------------------------------------------------------------------------
 
-	@Override
-	public PluginInfo getPluginInfo() {
+	public PluginManifest getPluginInfo() {
 		ObjectMapper objectMapper = context != null ? context.getObjectMapper() : new ObjectMapper();
 		try (var is = getClass().getResourceAsStream("/plugin.json")) {
 			if (is != null) {
-				return objectMapper.readValue(is, PluginInfo.class);
+				return objectMapper.readValue(is, PluginManifest.class);
 			}
 		} catch (Exception e) {
 			log.error("Error reading /plugin.json for LocalFilePanelProvider", e);
 		}
-		return FALLBACK_PLUGIN_INFO;
+		return null;
 	}
 
 	@Override
@@ -145,20 +141,6 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		if (focused && e instanceof LocalMenuActionEvent actionEvent && "help".equals(actionEvent.getActionId())) {
 			openDocumentation();
 		}
-	}
-
-	private static PluginInfo buildFallbackPluginInfo() {
-		PluginInfo info = new PluginInfo();
-		info.setName("Local Filesystem Panel");
-		info.setId("dev.nuclr.plugin.core.panel.fs");
-		info.setVersion("1.0.0");
-		info.setDescription("Provides local filesystem roots (drives/mount points) to the file panel.");
-		info.setAuthor("Nuclr Development Team");
-		info.setLicense("Apache-2.0");
-		info.setWebsite("https://nuclr.dev");
-		info.setPageUrl("https://nuclr.dev/plugins/core/filepanel-fs.html");
-		info.setDocUrl("https://nuclr.dev/plugins/core/filepanel-fs.html");
-		return info;
 	}
 
 	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
