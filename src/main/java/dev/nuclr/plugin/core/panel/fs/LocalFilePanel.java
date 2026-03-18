@@ -10,6 +10,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,6 +68,7 @@ public class LocalFilePanel extends JPanel {
 	private StringBuilder searchQuery;
 	private Popup searchPopup;
 	private boolean altSearchActive;
+	private int rightDragAnchorRow = -1;
 
 	public LocalFilePanel(Runnable helpAction) {
 		model = new LocalFilePanelModel();
@@ -174,6 +176,16 @@ public class LocalFilePanel extends JPanel {
 				createNewFolder();
 			}
 		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("INSERT"), "toggleSelectionAndAdvance");
+		table.getActionMap().put("toggleSelectionAndAdvance", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				toggleSelectionAndAdvance();
+			}
+		});
 
 		table.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) {
@@ -182,9 +194,46 @@ public class LocalFilePanel extends JPanel {
 		});
 		table.addMouseListener(new MouseAdapter() {
 			@Override
+			public void mousePressed(MouseEvent e) {
+				if (SwingUtilities.isRightMouseButton(e)) {
+					int row = table.rowAtPoint(e.getPoint());
+					if (row >= 0) {
+						rightDragAnchorRow = row;
+						table.setRowSelectionInterval(row, row);
+						table.scrollRectToVisible(table.getCellRect(row, 0, true));
+					}
+				}
+			}
+
+			@Override
 			public void mouseClicked(MouseEvent e) {
 				if (isOpenWithMouseGesture(e)) {
 					openSelectedEntry(e.isShiftDown());
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				if (SwingUtilities.isRightMouseButton(e)) {
+					rightDragAnchorRow = -1;
+				}
+			}
+		});
+		table.addMouseMotionListener(new MouseMotionAdapter() {
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				if (!SwingUtilities.isRightMouseButton(e) || rightDragAnchorRow < 0) {
+					return;
+				}
+				int row = table.rowAtPoint(e.getPoint());
+				if (row < 0) {
+					row = e.getPoint().y < 0 ? 0 : model.getRowCount() - 1;
+				}
+				if (row >= 0 && model.getRowCount() > 0) {
+					int start = Math.min(rightDragAnchorRow, row);
+					int end = Math.max(rightDragAnchorRow, row);
+					table.setRowSelectionInterval(start, end);
+					table.scrollRectToVisible(table.getCellRect(row, 0, true));
 				}
 			}
 		});
@@ -409,6 +458,33 @@ public class LocalFilePanel extends JPanel {
 
 		table.setRowSelectionInterval(targetRow, targetRow);
 		table.scrollRectToVisible(table.getCellRect(targetRow, 0, true));
+	}
+
+	private void toggleSelectionAndAdvance() {
+		int rowCount = model.getRowCount();
+		if (rowCount == 0) {
+			return;
+		}
+
+		int currentRow = table.getSelectionModel().getLeadSelectionIndex();
+		if (currentRow < 0) {
+			currentRow = table.getSelectedRow();
+		}
+		if (currentRow < 0) {
+			currentRow = 0;
+		}
+
+		if (!table.isRowSelected(currentRow)) {
+			table.addRowSelectionInterval(currentRow, currentRow);
+		}
+
+		int nextRow = Math.min(currentRow + 1, rowCount - 1);
+		table.getSelectionModel().setLeadSelectionIndex(nextRow);
+		table.getSelectionModel().setAnchorSelectionIndex(nextRow);
+		table.getColumnModel().getSelectionModel().setLeadSelectionIndex(0);
+		table.getColumnModel().getSelectionModel().setAnchorSelectionIndex(0);
+		table.repaint();
+		table.scrollRectToVisible(table.getCellRect(nextRow, 0, true));
 	}
 
 	private void updateStatus() {
