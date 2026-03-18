@@ -8,6 +8,9 @@ import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.ReadOnlyFileSystemException;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.DosFileAttributes;
 import java.text.DateFormat;
@@ -15,11 +18,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -34,6 +39,10 @@ import javax.swing.table.DefaultTableCellRenderer;
 public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
+	private static final Set<String> WINDOWS_RESERVED_NAMES = Set.of(
+			"CON", "PRN", "AUX", "NUL",
+			"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+			"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9");
 
 	private final JTable table;
 	private final JLabel statusLabel;
@@ -109,6 +118,16 @@ public class LocalFilePanel extends JPanel {
 				moveSelectionByPage(1);
 			}
 		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("F7"), "createNewFolder");
+		table.getActionMap().put("createNewFolder", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				createNewFolder();
+			}
+		});
 
 		table.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) {
@@ -154,13 +173,82 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	public void showDirectory(Path path) {
+		showDirectory(path, null);
+	}
+
+	public void showDirectory(Path path, Path selectedPath) {
 		currentDirectory = path;
 		pathLabel.setText(path == null ? " " : path.toString());
 		model.setEntries(readEntries(path));
 		if (model.getRowCount() > 0) {
+			if (selectedPath != null && selectPath(selectedPath)) {
+				return;
+			}
 			table.setRowSelectionInterval(0, 0);
 		} else {
 			statusLabel.setText(" ");
+		}
+	}
+
+	public void createNewFolder() {
+		if (currentDirectory == null) {
+			showError("No current directory is open.");
+			return;
+		}
+		if (!Files.exists(currentDirectory)) {
+			showError("The current directory does not exist.");
+			return;
+		}
+		if (!Files.isDirectory(currentDirectory)) {
+			showError("The current path is not a directory.");
+			return;
+		}
+
+		try {
+			if (Files.getFileStore(currentDirectory).isReadOnly()) {
+				showError("The current directory is on a read-only filesystem.");
+				return;
+			}
+		} catch (IOException ex) {
+			showError("Cannot determine whether the current filesystem is writable: " + ex.getMessage());
+			return;
+		}
+
+		if (!Files.isWritable(currentDirectory)) {
+			showError("You do not have permission to create folders in this directory.");
+			return;
+		}
+
+		String folderName = JOptionPane.showInputDialog(
+				this,
+				"Create new folder in:\n" + currentDirectory,
+				"Create New Folder",
+				JOptionPane.PLAIN_MESSAGE);
+		if (folderName == null) {
+			return;
+		}
+
+		String validationError = validateFolderName(folderName);
+		if (validationError != null) {
+			showError(validationError);
+			return;
+		}
+
+		String normalizedName = folderName.trim();
+		Path newFolder = currentDirectory.resolve(normalizedName);
+		try {
+			Files.createDirectory(newFolder);
+			showDirectory(currentDirectory, newFolder);
+		} catch (FileAlreadyExistsException ex) {
+			showError("A file or folder with that name already exists.");
+		} catch (AccessDeniedException ex) {
+			showError("Access denied while creating the folder.");
+		} catch (ReadOnlyFileSystemException ex) {
+			showError("The current filesystem is read-only.");
+		} catch (SecurityException ex) {
+			showError("Security policy denied folder creation.");
+		} catch (IOException ex) {
+			showError("Cannot create folder: " + ex.getMessage());
 		}
 	}
 
@@ -252,6 +340,18 @@ public class LocalFilePanel extends JPanel {
 		statusLabel.setText(entry.name() + "  |  " + type);
 	}
 
+	private boolean selectPath(Path selectedPath) {
+		for (int row = 0; row < model.getRowCount(); row++) {
+			LocalFilePanelModel.Entry entry = model.getEntryAt(row);
+			if (selectedPath.equals(entry.path())) {
+				table.setRowSelectionInterval(row, row);
+				table.scrollRectToVisible(table.getCellRect(row, 0, true));
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static String humanReadableSize(long sizeBytes) {
 		if (sizeBytes < 1024) {
 			return sizeBytes + " B";
@@ -280,6 +380,52 @@ public class LocalFilePanel extends JPanel {
 		} catch (Exception ex) {
 			return false;
 		}
+	}
+
+	private String validateFolderName(String folderName) {
+		if (folderName == null) {
+			return "Folder name is required.";
+		}
+		String trimmed = folderName.trim();
+		if (trimmed.isEmpty()) {
+			return "Folder name cannot be blank.";
+		}
+		if (".".equals(trimmed) || "..".equals(trimmed)) {
+			return "Folder name cannot be '.' or '..'.";
+		}
+		if (trimmed.indexOf('/') >= 0 || trimmed.indexOf('\\') >= 0) {
+			return "Folder name cannot contain path separators.";
+		}
+		for (int i = 0; i < trimmed.length(); i++) {
+			if (Character.isISOControl(trimmed.charAt(i))) {
+				return "Folder name cannot contain control characters.";
+			}
+		}
+
+		String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+		if (osName.contains("win")) {
+			for (char c : "<>:\"|?*".toCharArray()) {
+				if (trimmed.indexOf(c) >= 0) {
+					return "Folder name contains characters not allowed on Windows.";
+				}
+			}
+			if (trimmed.endsWith(" ") || trimmed.endsWith(".")) {
+				return "Windows folder names cannot end with a space or period.";
+			}
+			if (WINDOWS_RESERVED_NAMES.contains(trimmed.toUpperCase(Locale.ROOT))) {
+				return "Folder name is reserved on Windows.";
+			}
+		}
+
+		Path target = currentDirectory.resolve(trimmed);
+		if (Files.exists(target)) {
+			return "A file or folder with that name already exists.";
+		}
+		return null;
+	}
+
+	private void showError(String message) {
+		JOptionPane.showMessageDialog(this, message, "Create New Folder", JOptionPane.ERROR_MESSAGE);
 	}
 
 	private void applyUiFonts() {

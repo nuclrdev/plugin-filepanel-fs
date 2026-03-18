@@ -125,13 +125,17 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 
 	@Override
 	public boolean isMessageSupported(PluginEvent msg) {
-		return msg instanceof PluginThemeUpdatedEvent;
+		return msg instanceof PluginThemeUpdatedEvent || msg instanceof LocalMenuActionEvent;
 	}
 
 	@Override
 	public void handleMessage(PluginEvent e) {
 		if (e instanceof PluginThemeUpdatedEvent && panel != null) {
 			panel.repaint();
+			return;
+		}
+		if (e instanceof LocalMenuActionEvent actionEvent && "makeFolder".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).createNewFolder();
 		}
 	}
 
@@ -183,11 +187,12 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		items.add(menu("Hide Right", "Ctrl+F2", "hideRight", source));
 		items.add(menu("Sort by name", "Ctrl+F3", "sortByName", source));
 		items.add(menu("Sort by extension", "Ctrl+F4", "sortByExtension", source));
-		items.add(menu("Sort by modified date", "Ctrl+F5", "sortByModifiedDate", source));
+		items.add(menu("Sort by modified", "Ctrl+F5", "sortByModifiedDate", source));
 		items.add(menu("Sort by size", "Ctrl+F6", "sortBySize", source));
 		items.add(menu("Unsort", "Ctrl+F7", "unsort", source));
-		items.add(menu("Sort by create date", "Ctrl+F8", "sortByCreateDate", source));
-		items.add(menu("Sort by access time", "Ctrl+F9", "sortByAccessTime", source));
+		items.add(menu("Sort by create", "Ctrl+F8", "sortByCreateDate", source));
+		items.add(menu("Sort by access", "Ctrl+F9", "sortByAccessTime", source));
+		items.add(menu("Sort menu", "Ctrl+F12", "sortByAccessTime", source));
 	}
 
 	private static void addShiftMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
