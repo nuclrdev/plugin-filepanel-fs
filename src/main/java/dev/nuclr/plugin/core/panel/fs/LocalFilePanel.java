@@ -77,6 +77,7 @@ public class LocalFilePanel extends JPanel {
 		table.getColumnModel().getColumn(2).setPreferredWidth(160);
 		table.getColumnModel().getColumn(2).setMaxWidth(180);
 		table.setDefaultRenderer(Object.class, new EntryRenderer());
+		applyUiFonts();
 
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
 				.put(KeyStroke.getKeyStroke("ENTER"), "openSelected");
@@ -126,6 +127,14 @@ public class LocalFilePanel extends JPanel {
 		add(pathLabel, BorderLayout.NORTH);
 		add(new JScrollPane(table), BorderLayout.CENTER);
 		add(statusLabel, BorderLayout.SOUTH);
+	}
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		if (table != null) {
+			applyUiFonts();
+		}
 	}
 
 	public void focusTable() {
@@ -273,12 +282,25 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
-	private static String extensionOf(String name) {
-		int dot = name.lastIndexOf('.');
-		if (dot < 0 || dot == name.length() - 1) {
-			return "";
+	private void applyUiFonts() {
+		Font baseFont = resolveBaseFont();
+		table.setFont(baseFont);
+		table.getTableHeader().setFont(baseFont);
+		pathLabel.setFont(baseFont);
+		statusLabel.setFont(baseFont);
+		table.setRowHeight(Math.max(20, table.getFontMetrics(baseFont).getHeight() + 6));
+	}
+
+	private Font resolveBaseFont() {
+		Font tableFont = UIManager.getFont("Table.font");
+		if (tableFont != null) {
+			return tableFont;
 		}
-		return name.substring(dot + 1).toLowerCase(Locale.ROOT);
+		Font labelFont = UIManager.getFont("Label.font");
+		if (labelFont != null) {
+			return labelFont;
+		}
+		return getFont() != null ? getFont() : new Font(Font.DIALOG, Font.PLAIN, 12);
 	}
 
 	private static final class EntryRenderer extends DefaultTableCellRenderer {
@@ -296,7 +318,7 @@ public class LocalFilePanel extends JPanel {
 			LocalFilePanel panel = (LocalFilePanel) SwingUtilities.getAncestorOfClass(LocalFilePanel.class, table);
 			LocalFilePanelModel model = (LocalFilePanelModel) table.getModel();
 			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
-			component.setFont(component.getFont().deriveFont(entry.directory() ? Font.BOLD : Font.PLAIN));
+			component.setFont(table.getFont().deriveFont(entry.directory() ? Font.BOLD : Font.PLAIN));
 			if (component instanceof JLabel label) {
 				label.setHorizontalAlignment(column == 1 ? SwingConstants.RIGHT : SwingConstants.LEFT);
 				if (!isSelected && column == 0 && panel != null) {
