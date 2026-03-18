@@ -12,6 +12,7 @@ public final class FileNameHighlighter {
 	private static final Set<String> ARCHIVE_EXTENSIONS = Set.of("zip", "jar", "rar", "tar", "gz");
 
 	private final Color defaultColor;
+	private final Color executableFileColor;
 	private final Color hiddenFileColor;
 	private final Color textFileColor;
 	private final Color imageFileColor;
@@ -20,6 +21,7 @@ public final class FileNameHighlighter {
 
 	public FileNameHighlighter(Color defaultColor) {
 		this.defaultColor = defaultColor;
+		this.executableFileColor = new Color(231, 92, 92);
 		this.hiddenFileColor = new Color(120, 120, 120);
 		this.textFileColor = new Color(60, 150, 90);
 		this.imageFileColor = new Color(40, 110, 180);
@@ -33,6 +35,9 @@ public final class FileNameHighlighter {
 		}
 		if (entry.hidden() || entry.system()) {
 			return hiddenFileColor;
+		}
+		if (entry.executable()) {
+			return executableFileColor;
 		}
 
 		String extension = extensionOf(entry.name());

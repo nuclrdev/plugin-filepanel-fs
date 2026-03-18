@@ -43,6 +43,8 @@ public class LocalFilePanel extends JPanel {
 			"CON", "PRN", "AUX", "NUL",
 			"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
 			"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9");
+	private static final Set<String> WINDOWS_EXECUTABLE_EXTENSIONS = Set.of(
+			"exe", "com", "bat", "cmd");
 
 	private final JTable table;
 	private final JLabel statusLabel;
@@ -77,7 +79,7 @@ public class LocalFilePanel extends JPanel {
 		statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
 
 		table.setFillsViewportHeight(true);
-		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 		table.getTableHeader().setReorderingAllowed(false);
 		table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
 		table.setRowSelectionAllowed(true);
@@ -291,6 +293,7 @@ public class LocalFilePanel extends JPanel {
 		boolean directory = Files.isDirectory(path);
 		boolean hidden = isHidden(path);
 		boolean system = isSystem(path);
+		boolean executable = isExecutable(path, directory);
 		long sizeBytes = 0L;
 		FileTime modifiedTime = null;
 		try {
@@ -302,7 +305,7 @@ public class LocalFilePanel extends JPanel {
 			// Keep listing usable even when some attributes cannot be read.
 		}
 		String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
-		return new LocalFilePanelModel.Entry(path, name, directory, false, hidden, system, sizeBytes, modifiedTime);
+		return new LocalFilePanelModel.Entry(path, name, directory, false, hidden, system, executable, sizeBytes, modifiedTime);
 	}
 
 	private void openSelectedEntry() {
@@ -408,6 +411,23 @@ public class LocalFilePanel extends JPanel {
 		} catch (Exception ex) {
 			return false;
 		}
+	}
+
+	private static boolean isExecutable(Path path, boolean directory) {
+		if (directory) {
+			return false;
+		}
+		String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+		if (osName.contains("win")) {
+			String fileName = path.getFileName() == null ? "" : path.getFileName().toString();
+			int dot = fileName.lastIndexOf('.');
+			if (dot >= 0 && dot < fileName.length() - 1) {
+				String extension = fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+				return WINDOWS_EXECUTABLE_EXTENSIONS.contains(extension);
+			}
+			return false;
+		}
+		return Files.isExecutable(path);
 	}
 
 	private String validateFolderName(String folderName) {

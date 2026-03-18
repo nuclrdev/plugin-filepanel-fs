@@ -89,11 +89,12 @@ public final class LocalFilePanelModel extends AbstractTableModel {
 			boolean parent,
 			boolean hidden,
 			boolean system,
+			boolean executable,
 			long sizeBytes,
 			FileTime modifiedTime) {
 
 		public static Entry parent(Path parentPath) {
-			return new Entry(parentPath, "..", true, true, false, false, 0L, null);
+			return new Entry(parentPath, "..", true, true, false, false, false, 0L, null);
 		}
 	}
 
