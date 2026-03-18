@@ -1,5 +1,7 @@
 package dev.nuclr.plugin.core.panel.fs;
 
+import java.awt.Desktop;
+import java.net.URI;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,7 +61,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	@Override
 	public JComponent getPanel() {
 		if (panel == null) {
-			panel = new LocalFilePanel();
+			panel = new LocalFilePanel(this::openDocumentation);
 		}
 		return panel;
 	}
@@ -138,6 +140,10 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		if (focused && e instanceof LocalMenuActionEvent actionEvent && "makeFolder".equals(actionEvent.getActionId())) {
 			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
 			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
+			return;
+		}
+		if (focused && e instanceof LocalMenuActionEvent actionEvent && "help".equals(actionEvent.getActionId())) {
+			openDocumentation();
 		}
 	}
 
@@ -157,6 +163,23 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 
 	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
 		return new LocalMenuResource(name, keyStroke, new LocalMenuActionEvent(actionId, source));
+	}
+
+	private void openDocumentation() {
+		String docUrl = getPluginInfo().getDocUrl();
+		if (docUrl == null || docUrl.isBlank()) {
+			log.warn("No documentation URL configured for {}", getPluginInfo().getId());
+			return;
+		}
+		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+			log.warn("Desktop browse is not supported, cannot open {}", docUrl);
+			return;
+		}
+		try {
+			Desktop.getDesktop().browse(URI.create(docUrl));
+		} catch (Exception ex) {
+			log.warn("Cannot open documentation URL {}: {}", docUrl, ex.getMessage());
+		}
 	}
 
 	private static void addDefaultMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {

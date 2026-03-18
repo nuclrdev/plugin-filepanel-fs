@@ -53,14 +53,16 @@ public class LocalFilePanel extends JPanel {
 	private final Border inactiveBorder;
 	private final Border activeBorder;
 	private final FileNameHighlighter fileNameHighlighter;
+	private final Runnable helpAction;
 
 	private Path currentDirectory;
 
-	public LocalFilePanel() {
+	public LocalFilePanel(Runnable helpAction) {
 		model = new LocalFilePanelModel();
 		table = new JTable(model);
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
+		this.helpAction = helpAction;
 		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
 		activeBorder = BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(
@@ -98,6 +100,18 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
 				openSelectedEntry();
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("F1"), "openHelp");
+		table.getActionMap().put("openHelp", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				if (helpAction != null) {
+					helpAction.run();
+				}
 			}
 		});
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
