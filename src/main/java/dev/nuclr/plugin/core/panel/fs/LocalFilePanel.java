@@ -2,6 +2,7 @@ package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -99,7 +100,17 @@ public class LocalFilePanel extends JPanel {
 
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
-				openSelectedEntry();
+				openSelectedEntry(false);
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("shift ENTER"), "openSelectedShift");
+		table.getActionMap().put("openSelectedShift", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				openSelectedEntry(true);
 			}
 		});
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
@@ -153,8 +164,8 @@ public class LocalFilePanel extends JPanel {
 		table.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
-				if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
-					openSelectedEntry();
+				if (isOpenWithMouseGesture(e)) {
+					openSelectedEntry(e.isShiftDown());
 				}
 			}
 		});
@@ -322,16 +333,22 @@ public class LocalFilePanel extends JPanel {
 		return new LocalFilePanelModel.Entry(path, name, directory, false, hidden, system, executable, sizeBytes, modifiedTime);
 	}
 
-	private void openSelectedEntry() {
+	private void openSelectedEntry(boolean shiftDown) {
 		int row = table.getSelectedRow();
 		if (row < 0) {
 			return;
 		}
 		LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
+		if (entry.parent() && shiftDown) {
+			revealCurrentDirectoryInSystemExplorer();
+			return;
+		}
 		if (entry.directory()) {
 			Path selectionAfterOpen = entry.parent() && currentDirectory != null ? currentDirectory : null;
 			showDirectory(entry.path(), selectionAfterOpen);
+			return;
 		}
+		openFileWithDefaultApplication(entry.path());
 	}
 
 	private void moveSelectionByPage(int direction) {
@@ -488,6 +505,53 @@ public class LocalFilePanel extends JPanel {
 
 	private void showError(String message) {
 		JOptionPane.showMessageDialog(this, message, "Create New Folder", JOptionPane.ERROR_MESSAGE);
+	}
+
+	private void openFileWithDefaultApplication(Path path) {
+		if (path == null || !Files.isRegularFile(path)) {
+			return;
+		}
+		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+			showError("Opening files with the system default application is not supported on this platform.");
+			return;
+		}
+		try {
+			Desktop.getDesktop().open(path.toFile());
+		} catch (Exception ex) {
+			showError("Cannot open file: " + ex.getMessage());
+		}
+	}
+
+	private void revealCurrentDirectoryInSystemExplorer() {
+		if (currentDirectory == null || !Files.isDirectory(currentDirectory)) {
+			showError("No current directory is open.");
+			return;
+		}
+
+		String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+		try {
+			if (osName.contains("win")) {
+				new ProcessBuilder("explorer.exe", currentDirectory.toString()).start();
+				return;
+			}
+			if (osName.contains("mac")) {
+				new ProcessBuilder("open", currentDirectory.toString()).start();
+				return;
+			}
+			if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+				Desktop.getDesktop().open(currentDirectory.toFile());
+				return;
+			}
+		} catch (Exception ex) {
+			showError("Cannot open the system file explorer: " + ex.getMessage());
+			return;
+		}
+
+		showError("Opening the system file explorer is not supported on this platform.");
+	}
+
+	private boolean isOpenWithMouseGesture(MouseEvent event) {
+		return event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event);
 	}
 
 	private void applyUiFonts() {
