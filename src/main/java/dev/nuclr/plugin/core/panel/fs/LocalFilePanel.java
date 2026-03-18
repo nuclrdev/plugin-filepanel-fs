@@ -191,6 +191,16 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	public void createNewFolder() {
+		createNewFolder(currentDirectory);
+	}
+
+	public void createNewFolder(Path contextPath) {
+		Path resolvedDirectory = resolveFolderCreationDirectory(currentDirectory, contextPath);
+		if (resolvedDirectory != null) {
+			currentDirectory = resolvedDirectory;
+			pathLabel.setText(currentDirectory.toString());
+		}
+
 		if (currentDirectory == null) {
 			showError("No current directory is open.");
 			return;
@@ -350,6 +360,23 @@ public class LocalFilePanel extends JPanel {
 			}
 		}
 		return false;
+	}
+
+	private Path resolveFolderCreationDirectory(Path preferredDirectory, Path fallbackContextPath) {
+		if (preferredDirectory != null && Files.isDirectory(preferredDirectory)) {
+			return preferredDirectory;
+		}
+		if (fallbackContextPath == null) {
+			return preferredDirectory;
+		}
+		if (Files.isDirectory(fallbackContextPath)) {
+			return fallbackContextPath;
+		}
+		Path parent = fallbackContextPath.getParent();
+		if (parent != null && Files.isDirectory(parent)) {
+			return parent;
+		}
+		return preferredDirectory;
 	}
 
 	private static String humanReadableSize(long sizeBytes) {

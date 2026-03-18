@@ -37,6 +37,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 
 	private ApplicationPluginContext context;
 	private LocalFilePanel panel;
+	private boolean focused;
 
 	// -------------------------------------------------------------------------
 	// BasePlugin
@@ -134,8 +135,9 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 			panel.repaint();
 			return;
 		}
-		if (e instanceof LocalMenuActionEvent actionEvent && "makeFolder".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).createNewFolder();
+		if (focused && e instanceof LocalMenuActionEvent actionEvent && "makeFolder".equals(actionEvent.getActionId())) {
+			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
+			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
 		}
 	}
 
@@ -204,11 +206,13 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 
 	@Override
 	public void onFocusGained() {
+		focused = true;
 		((LocalFilePanel) getPanel()).setPluginFocused(true);
 	}
 
 	@Override
 	public void onFocusLost() {
+		focused = false;
 		if (panel != null) {
 			panel.setPluginFocused(false);
 		}
