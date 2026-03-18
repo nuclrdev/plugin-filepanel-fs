@@ -4,8 +4,12 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Font;
+import java.awt.IllegalComponentStateException;
+import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +31,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.Popup;
+import javax.swing.PopupFactory;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
@@ -55,14 +61,19 @@ public class LocalFilePanel extends JPanel {
 	private final Border activeBorder;
 	private final FileNameHighlighter fileNameHighlighter;
 	private final Runnable helpAction;
+	private final JLabel searchLabel;
 
 	private Path currentDirectory;
+	private StringBuilder searchQuery;
+	private Popup searchPopup;
+	private boolean altSearchActive;
 
 	public LocalFilePanel(Runnable helpAction) {
 		model = new LocalFilePanelModel();
 		table = new JTable(model);
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
+		searchLabel = new JLabel();
 		this.helpAction = helpAction;
 		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
 		activeBorder = BorderFactory.createCompoundBorder(
@@ -80,6 +91,14 @@ public class LocalFilePanel extends JPanel {
 
 		pathLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
 		statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
+		searchLabel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(UIManager.getColor("Table.selectionBackground") != null
+						? UIManager.getColor("Table.selectionBackground")
+						: java.awt.Color.GRAY),
+				BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+		searchLabel.setOpaque(true);
+		searchLabel.setBackground(UIManager.getColor("Panel.background"));
+		searchLabel.setForeground(UIManager.getColor("Label.foreground"));
 
 		table.setFillsViewportHeight(true);
 		table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -169,6 +188,27 @@ public class LocalFilePanel extends JPanel {
 				}
 			}
 		});
+		table.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent e) {
+				handleSearchKeyPressed(e);
+			}
+
+			@Override
+			public void keyTyped(KeyEvent e) {
+				handleSearchKeyTyped(e);
+			}
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ALT) {
+					if (altSearchActive) {
+						e.consume();
+					}
+					hideSearchPopup();
+				}
+			}
+		});
 
 		add(pathLabel, BorderLayout.NORTH);
 		add(new JScrollPane(table), BorderLayout.CENTER);
@@ -206,6 +246,7 @@ public class LocalFilePanel extends JPanel {
 	public void showDirectory(Path path, Path selectedPath) {
 		currentDirectory = path;
 		pathLabel.setText(path == null ? " " : path.toString());
+		hideSearchPopup();
 		model.setEntries(readEntries(path));
 		if (model.getRowCount() > 0) {
 			if (selectedPath != null && selectPath(selectedPath)) {
@@ -505,6 +546,111 @@ public class LocalFilePanel extends JPanel {
 
 	private void showError(String message) {
 		JOptionPane.showMessageDialog(this, message, "Create New Folder", JOptionPane.ERROR_MESSAGE);
+	}
+
+	private void handleSearchKeyPressed(KeyEvent event) {
+		if (event.getKeyCode() == KeyEvent.VK_ALT) {
+			altSearchActive = true;
+			event.consume();
+			return;
+		}
+		if (!event.isAltDown()) {
+			return;
+		}
+		int keyCode = event.getKeyCode();
+		if (keyCode == KeyEvent.VK_ALT
+				|| keyCode == KeyEvent.VK_ENTER
+				|| keyCode == KeyEvent.VK_LEFT
+				|| keyCode == KeyEvent.VK_RIGHT
+				|| keyCode == KeyEvent.VK_UP
+				|| keyCode == KeyEvent.VK_DOWN
+				|| keyCode == KeyEvent.VK_SHIFT
+				|| keyCode == KeyEvent.VK_CONTROL) {
+			return;
+		}
+		if (keyCode == KeyEvent.VK_BACK_SPACE) {
+			if (searchQuery != null && searchQuery.length() > 0) {
+				searchQuery.deleteCharAt(searchQuery.length() - 1);
+				if (searchQuery.length() == 0) {
+					hideSearchPopup();
+				} else {
+					updateSearchPopup();
+					selectFirstMatch(searchQuery.toString());
+				}
+			}
+			event.consume();
+			return;
+		}
+		altSearchActive = true;
+		event.consume();
+	}
+
+	private void handleSearchKeyTyped(KeyEvent event) {
+		if (!event.isAltDown()) {
+			return;
+		}
+		char typedChar = event.getKeyChar();
+		if (Character.isISOControl(typedChar)) {
+			return;
+		}
+		if (searchQuery == null) {
+			searchQuery = new StringBuilder();
+		}
+		searchQuery.append(Character.toLowerCase(typedChar));
+		updateSearchPopup();
+		selectFirstMatch(searchQuery.toString());
+		event.consume();
+		altSearchActive = true;
+	}
+
+	private void updateSearchPopup() {
+		if (searchQuery == null || searchQuery.length() == 0) {
+			hideSearchPopup();
+			return;
+		}
+		if (searchPopup != null) {
+			searchPopup.hide();
+		}
+		searchLabel.setText("Search: " + searchQuery);
+		try {
+			Point location = table.getLocationOnScreen();
+			int x = location.x + 8;
+			int y = location.y + Math.max(8, table.getHeight() - searchLabel.getPreferredSize().height - 8);
+			searchPopup = PopupFactory.getSharedInstance().getPopup(table, searchLabel, x, y);
+			searchPopup.show();
+		} catch (IllegalComponentStateException ignored) {
+			searchPopup = null;
+		}
+	}
+
+	private void hideSearchPopup() {
+		if (searchPopup != null) {
+			searchPopup.hide();
+			searchPopup = null;
+		}
+		searchQuery = null;
+		altSearchActive = false;
+	}
+
+	private void selectFirstMatch(String query) {
+		String needle = query.toLowerCase(Locale.ROOT);
+		int rowCount = model.getRowCount();
+		if (rowCount == 0) {
+			return;
+		}
+		int currentRow = table.getSelectedRow();
+		if (currentRow < 0) {
+			currentRow = -1;
+		}
+		for (int offset = 1; offset <= rowCount; offset++) {
+			int row = Math.floorMod(currentRow + offset, rowCount);
+			LocalFilePanelModel.Entry entry = model.getEntryAt(row);
+			if (entry.name().toLowerCase(Locale.ROOT).startsWith(needle)) {
+				table.setRowSelectionInterval(row, row);
+				table.scrollRectToVisible(table.getCellRect(row, 0, true));
+				return;
+			}
+		}
 	}
 
 	private void openFileWithDefaultApplication(Path path) {
