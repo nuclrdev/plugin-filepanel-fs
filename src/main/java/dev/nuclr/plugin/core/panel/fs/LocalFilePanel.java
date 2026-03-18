@@ -312,7 +312,8 @@ public class LocalFilePanel extends JPanel {
 		}
 		LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
 		if (entry.directory()) {
-			showDirectory(entry.path());
+			Path selectionAfterOpen = entry.parent() && currentDirectory != null ? currentDirectory : null;
+			showDirectory(entry.path(), selectionAfterOpen);
 		}
 	}
 
