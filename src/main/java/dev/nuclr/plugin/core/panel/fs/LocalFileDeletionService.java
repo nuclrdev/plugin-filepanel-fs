@@ -61,6 +61,7 @@ final class LocalFileDeletionService {
 		JButton yesButton = findButton(dialog, "Yes");
 		JButton noButton = findButton(dialog, "No");
 		configureArrowKeyFocus(dialog, yesButton, noButton);
+		dialog.setLocationRelativeTo(parent);
 		if (noButton != null) {
 			SwingUtilities.invokeLater(noButton::requestFocusInWindow);
 		}
