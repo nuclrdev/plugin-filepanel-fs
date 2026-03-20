@@ -41,6 +41,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
+import javax.swing.JViewport;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
@@ -328,7 +329,7 @@ public class LocalFilePanel extends JPanel {
 			if (selectedPath != null && selectPath(selectedPath)) {
 				return;
 			}
-			table.setRowSelectionInterval(0, 0);
+			selectFirstRowAndScrollToTop();
 		} else {
 			statusLabel.setText(" ");
 		}
@@ -486,6 +487,9 @@ public class LocalFilePanel extends JPanel {
 		if (entry.directory()) {
 			Path selectionAfterOpen = entry.parent() && currentDirectory != null ? currentDirectory : null;
 			showDirectory(entry.path(), selectionAfterOpen);
+			if (!entry.parent()) {
+				selectFirstRowAndScrollToTop();
+			}
 			return;
 		}
 		openFileWithDefaultApplication(entry.path());
@@ -556,12 +560,23 @@ public class LocalFilePanel extends JPanel {
 		for (int row = 0; row < model.getRowCount(); row++) {
 			LocalFilePanelModel.Entry entry = model.getEntryAt(row);
 			if (selectedPath.equals(entry.path())) {
-				table.setRowSelectionInterval(row, row);
-				table.scrollRectToVisible(table.getCellRect(row, 0, true));
+				selectRow(row);
 				return true;
 			}
 		}
 		return false;
+	}
+
+	private void selectFirstRowAndScrollToTop() {
+		selectRow(0);
+		if (table.getParent() instanceof JViewport viewport) {
+			viewport.setViewPosition(new Point(0, 0));
+		}
+	}
+
+	private void selectRow(int row) {
+		table.setRowSelectionInterval(row, row);
+		table.scrollRectToVisible(table.getCellRect(row, 0, true));
 	}
 
 	private Path resolveFolderCreationDirectory(Path preferredDirectory, Path fallbackContextPath) {
