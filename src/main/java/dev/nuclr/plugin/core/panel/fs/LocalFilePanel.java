@@ -64,6 +64,7 @@ public class LocalFilePanel extends JPanel {
 	private final FileNameHighlighter fileNameHighlighter;
 	private final Runnable helpAction;
 	private final JLabel searchLabel;
+	private final LocalFileDeletionService deletionService;
 
 	private Path currentDirectory;
 	private StringBuilder searchQuery;
@@ -78,6 +79,7 @@ public class LocalFilePanel extends JPanel {
 		pathLabel = new JLabel(" ");
 		searchLabel = new JLabel();
 		this.helpAction = helpAction;
+		deletionService = new LocalFileDeletionService();
 		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
 		activeBorder = BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(
@@ -175,6 +177,30 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
 				createNewFolder();
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("F8"), "deleteSelection");
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("DELETE"), "deleteSelection");
+		table.getActionMap().put("deleteSelection", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				deleteSelection(false);
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("shift F8"), "deleteSelectionPermanently");
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("shift DELETE"), "deleteSelectionPermanently");
+		table.getActionMap().put("deleteSelectionPermanently", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				deleteSelection(true);
 			}
 		});
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
@@ -370,6 +396,27 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
+	public void deleteSelection(boolean permanent) {
+		List<LocalFilePanelModel.Entry> selectedEntries = getSelectedEntriesForDelete();
+		if (selectedEntries.isEmpty()) {
+			showError("Delete", "No files or folders selected.");
+			return;
+		}
+		try {
+			if (deletionService.delete(this, selectedEntries, permanent)) {
+				showDirectory(currentDirectory);
+			}
+		} catch (AccessDeniedException ex) {
+			showError("Delete", "Access denied while deleting " + ex.getFile() + ".");
+		} catch (ReadOnlyFileSystemException ex) {
+			showError("Delete", "The current filesystem is read-only.");
+		} catch (SecurityException ex) {
+			showError("Delete", "Security policy denied deletion.");
+		} catch (IOException ex) {
+			showError("Delete", "Cannot delete selection: " + ex.getMessage());
+		}
+	}
+
 	private List<LocalFilePanelModel.Entry> readEntries(Path directory) {
 		if (directory == null || !Files.isDirectory(directory)) {
 			return List.of();
@@ -393,6 +440,18 @@ public class LocalFilePanel extends JPanel {
 		}
 
 		return entries;
+	}
+
+	private List<LocalFilePanelModel.Entry> getSelectedEntriesForDelete() {
+		int[] selectedRows = table.getSelectedRows();
+		List<LocalFilePanelModel.Entry> selectedEntries = new ArrayList<>();
+		for (int selectedRow : selectedRows) {
+			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(selectedRow));
+			if (!entry.parent()) {
+				selectedEntries.add(entry);
+			}
+		}
+		return selectedEntries;
 	}
 
 	private LocalFilePanelModel.Entry toEntry(Path path) {
@@ -612,7 +671,11 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private void showError(String message) {
-		JOptionPane.showMessageDialog(this, message, "Create New Folder", JOptionPane.ERROR_MESSAGE);
+		showError("Create New Folder", message);
+	}
+
+	private void showError(String title, String message) {
+		JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
 	}
 
 	private static boolean isSearchKeyCode(int keyCode) {

@@ -138,6 +138,14 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
 			return;
 		}
+		if (focused && e instanceof LocalMenuActionEvent actionEvent && "delete".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).deleteSelection(false);
+			return;
+		}
+		if (focused && e instanceof LocalMenuActionEvent actionEvent && "deletePermanent".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).deleteSelection(true);
+			return;
+		}
 		if (focused && e instanceof LocalMenuActionEvent actionEvent && "help".equals(actionEvent.getActionId())) {
 			openDocumentation();
 		}
@@ -206,6 +214,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		items.add(menu("Create archive", "Shift+F1", "createArchive", source));
 		items.add(menu("Extract archive", "Shift+F2", "extractArchive", source));
 		items.add(menu("Create file", "Shift+F4", "createFile", source));
+		items.add(menu("Delete Permanently", "Shift+F8", "deletePermanent", source));
 		items.add(menu("Selection up", "Shift+F12", "selectionUp", source));
 	}
 
