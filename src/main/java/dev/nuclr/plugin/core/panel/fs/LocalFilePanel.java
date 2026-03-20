@@ -47,6 +47,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
+	private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
 	private static final Set<String> WINDOWS_RESERVED_NAMES = Set.of(
 			"CON", "PRN", "AUX", "NUL",
 			"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
@@ -250,7 +251,7 @@ public class LocalFilePanel extends JPanel {
 
 			@Override
 			public void keyReleased(KeyEvent e) {
-				if (e.getKeyCode() == KeyEvent.VK_ALT) {
+				if (isSearchKeyCode(e.getKeyCode())) {
 					if (altSearchActive) {
 						e.consume();
 					}
@@ -328,16 +329,6 @@ public class LocalFilePanel extends JPanel {
 		}
 		if (!Files.isDirectory(currentDirectory)) {
 			showError("The current path is not a directory.");
-			return;
-		}
-
-		try {
-			if (Files.getFileStore(currentDirectory).isReadOnly()) {
-				showError("The current directory is on a read-only filesystem.");
-				return;
-			}
-		} catch (IOException ex) {
-			showError("Cannot determine whether the current filesystem is writable: " + ex.getMessage());
 			return;
 		}
 
@@ -624,17 +615,25 @@ public class LocalFilePanel extends JPanel {
 		JOptionPane.showMessageDialog(this, message, "Create New Folder", JOptionPane.ERROR_MESSAGE);
 	}
 
+	private static boolean isSearchKeyCode(int keyCode) {
+		return IS_MAC ? keyCode == KeyEvent.VK_META : keyCode == KeyEvent.VK_ALT;
+	}
+
+	private static boolean isSearchModifierDown(KeyEvent event) {
+		return IS_MAC ? event.isMetaDown() : event.isAltDown();
+	}
+
 	private void handleSearchKeyPressed(KeyEvent event) {
-		if (event.getKeyCode() == KeyEvent.VK_ALT) {
+		if (isSearchKeyCode(event.getKeyCode())) {
 			altSearchActive = true;
 			event.consume();
 			return;
 		}
-		if (!event.isAltDown()) {
+		if (!isSearchModifierDown(event)) {
 			return;
 		}
 		int keyCode = event.getKeyCode();
-		if (keyCode == KeyEvent.VK_ALT
+		if (isSearchKeyCode(keyCode)
 				|| keyCode == KeyEvent.VK_ENTER
 				|| keyCode == KeyEvent.VK_LEFT
 				|| keyCode == KeyEvent.VK_RIGHT
@@ -662,7 +661,7 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private void handleSearchKeyTyped(KeyEvent event) {
-		if (!event.isAltDown()) {
+		if (!isSearchModifierDown(event)) {
 			return;
 		}
 		char typedChar = event.getKeyChar();
