@@ -6,20 +6,19 @@ import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.IllegalComponentStateException;
 import java.awt.Point;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.ReadOnlyFileSystemException;
-import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.DosFileAttributes;
-import java.text.DateFormat;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,20 +27,19 @@ import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.Popup;
-import javax.swing.PopupFactory;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
-import javax.swing.SwingUtilities;
+import javax.swing.Popup;
+import javax.swing.PopupFactory;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import javax.swing.JViewport;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
@@ -347,20 +345,20 @@ public class LocalFilePanel extends JPanel {
 		}
 
 		if (currentDirectory == null) {
-			showError("No current directory is open.");
+			showError("Create New Folder", "No current directory is open.");
 			return;
 		}
 		if (!Files.exists(currentDirectory)) {
-			showError("The current directory does not exist.");
+			showError("Create New Folder", "The current directory does not exist.");
 			return;
 		}
 		if (!Files.isDirectory(currentDirectory)) {
-			showError("The current path is not a directory.");
+			showError("Create New Folder", "The current path is not a directory.");
 			return;
 		}
 
 		if (!Files.isWritable(currentDirectory)) {
-			showError("You do not have permission to create folders in this directory.");
+			showError("Create New Folder", "You do not have permission to create folders in this directory.");
 			return;
 		}
 
@@ -375,7 +373,7 @@ public class LocalFilePanel extends JPanel {
 
 		String validationError = validateFolderName(folderName);
 		if (validationError != null) {
-			showError(validationError);
+			showError("Create New Folder", validationError);
 			return;
 		}
 
@@ -385,15 +383,15 @@ public class LocalFilePanel extends JPanel {
 			Files.createDirectory(newFolder);
 			showDirectory(currentDirectory, newFolder);
 		} catch (FileAlreadyExistsException ex) {
-			showError("A file or folder with that name already exists.");
+			showError("Create New Folder", "A file or folder with that name already exists.");
 		} catch (AccessDeniedException ex) {
-			showError("Access denied while creating the folder.");
+			showError("Create New Folder", "Access denied while creating the folder.");
 		} catch (ReadOnlyFileSystemException ex) {
-			showError("The current filesystem is read-only.");
+			showError("Create New Folder", "The current filesystem is read-only.");
 		} catch (SecurityException ex) {
-			showError("Security policy denied folder creation.");
+			showError("Create New Folder", "Security policy denied folder creation.");
 		} catch (IOException ex) {
-			showError("Cannot create folder: " + ex.getMessage());
+			showError("Create New Folder", "Cannot create folder: " + ex.getMessage());
 		}
 	}
 
@@ -685,10 +683,6 @@ public class LocalFilePanel extends JPanel {
 		return null;
 	}
 
-	private void showError(String message) {
-		showError("Create New Folder", message);
-	}
-
 	private void showError(String title, String message) {
 		JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
 	}
@@ -811,19 +805,19 @@ public class LocalFilePanel extends JPanel {
 			return;
 		}
 		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-			showError("Opening files with the system default application is not supported on this platform.");
+			showError("Error", "Opening files with the system default application is not supported on this platform.");
 			return;
 		}
 		try {
 			Desktop.getDesktop().open(path.toFile());
 		} catch (Exception ex) {
-			showError("Cannot open file: " + ex.getMessage());
+			showError("Error", "Cannot open file: " + ex.getMessage());
 		}
 	}
 
 	private void revealCurrentDirectoryInSystemExplorer() {
 		if (currentDirectory == null || !Files.isDirectory(currentDirectory)) {
-			showError("No current directory is open.");
+			showError("Error", "No current directory is open.");
 			return;
 		}
 
@@ -842,11 +836,11 @@ public class LocalFilePanel extends JPanel {
 				return;
 			}
 		} catch (Exception ex) {
-			showError("Cannot open the system file explorer: " + ex.getMessage());
+			showError("Error", "Cannot open the system file explorer: " + ex.getMessage());
 			return;
 		}
 
-		showError("Opening the system file explorer is not supported on this platform.");
+		showError("Error", "Opening the system file explorer is not supported on this platform.");
 	}
 
 	private boolean isOpenWithMouseGesture(MouseEvent event) {
