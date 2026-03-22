@@ -19,6 +19,7 @@ import dev.nuclr.plugin.PanelProviderPlugin;
 import dev.nuclr.plugin.PluginManifest;
 import dev.nuclr.plugin.PluginPathResource;
 import dev.nuclr.plugin.event.PluginEvent;
+import dev.nuclr.plugin.event.PluginOpenItemEvent;
 import dev.nuclr.plugin.event.PluginThemeUpdatedEvent;
 import dev.nuclr.plugin.event.bus.PluginEventListener;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>
  * Provides one {@link LocalPathResource} per root directory reported by
- * {@link FileSystems#getDefault()} — e.g. {@code C:\}, {@code D:\} on Windows
+ * {@link FileSystems#getDefault()} - e.g. {@code C:\}, {@code D:\} on Windows
  * or {@code /} on Linux/macOS.
  */
 @Slf4j
@@ -37,10 +38,6 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	private ApplicationPluginContext context;
 	private LocalFilePanel panel;
 	private boolean focused;
-
-	// -------------------------------------------------------------------------
-	// BasePlugin
-	// -------------------------------------------------------------------------
 
 	public PluginManifest getPluginInfo() {
 		ObjectMapper objectMapper = context != null ? context.getObjectMapper() : new ObjectMapper();
@@ -57,7 +54,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	@Override
 	public JComponent getPanel() {
 		if (panel == null) {
-			panel = new LocalFilePanel(this::openDocumentation);
+			panel = new LocalFilePanel(this, this::openDocumentation);
 		}
 		return panel;
 	}
@@ -89,10 +86,6 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		log.info("Local filesystem panel plugin unloaded");
 	}
 
-	// -------------------------------------------------------------------------
-	// PanelProviderPlugin
-	// -------------------------------------------------------------------------
-
 	@Override
 	public List<PluginPathResource> getChangeDriveResources() {
 		var resources = new ArrayList<PluginPathResource>();
@@ -120,6 +113,18 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 			return true;
 		}
 		return false;
+	}
+
+	public boolean requestOpen(Path path) {
+		if (context == null || path == null) {
+			return false;
+		}
+		PluginPathResource resource = new PluginPathResource();
+		resource.setPath(path);
+		resource.setName(path.getFileName() != null ? path.getFileName().toString() : path.toString());
+		PluginOpenItemEvent event = new PluginOpenItemEvent(this, resource);
+		context.getEventBus().emit(event);
+		return event.isHandled();
 	}
 
 	@Override
@@ -156,9 +161,13 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	private void openDocumentation() {
-		String docUrl = getPluginInfo().getDocUrl();
+		PluginManifest pluginInfo = getPluginInfo();
+		if (pluginInfo == null) {
+			return;
+		}
+		String docUrl = pluginInfo.getDocUrl();
 		if (docUrl == null || docUrl.isBlank()) {
-			log.warn("No documentation URL configured for {}", getPluginInfo().getId());
+			log.warn("No documentation URL configured for {}", pluginInfo.getId());
 			return;
 		}
 		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
@@ -230,5 +239,10 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		if (panel != null) {
 			panel.setPluginFocused(false);
 		}
+	}
+
+	@Override
+	public boolean canSupport(PluginPathResource resource) {
+		return resource != null && resource.getPath() != null && Files.isDirectory(resource.getPath());
 	}
 }

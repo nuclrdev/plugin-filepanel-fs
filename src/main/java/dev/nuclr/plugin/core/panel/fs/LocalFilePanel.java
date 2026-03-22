@@ -61,6 +61,7 @@ public class LocalFilePanel extends JPanel {
 	private final Border inactiveBorder;
 	private final Border activeBorder;
 	private final FileNameHighlighter fileNameHighlighter;
+	private final LocalFilePanelProvider provider;
 	private final Runnable helpAction;
 	private final JLabel searchLabel;
 	private final LocalFileDeletionService deletionService;
@@ -71,12 +72,13 @@ public class LocalFilePanel extends JPanel {
 	private boolean altSearchActive;
 	private int rightDragAnchorRow = -1;
 
-	public LocalFilePanel(Runnable helpAction) {
+	public LocalFilePanel(LocalFilePanelProvider provider, Runnable helpAction) {
 		model = new LocalFilePanelModel();
 		table = new JTable(model);
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
 		searchLabel = new JLabel();
+		this.provider = provider;
 		this.helpAction = helpAction;
 		deletionService = new LocalFileDeletionService();
 		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
@@ -490,6 +492,9 @@ public class LocalFilePanel extends JPanel {
 			}
 			return;
 		}
+		if (provider != null && provider.requestOpen(entry.path())) {
+			return;
+		}
 		openFileWithDefaultApplication(entry.path());
 	}
 
@@ -894,3 +899,5 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 }
+
+
