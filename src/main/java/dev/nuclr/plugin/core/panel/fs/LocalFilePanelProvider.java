@@ -1,166 +1,252 @@
 package dev.nuclr.plugin.core.panel.fs;
 
-import java.io.IOException;
+import java.awt.Desktop;
+import java.net.URI;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import dev.nuclr.plugin.panel.CollisionAction;
-import dev.nuclr.plugin.panel.CopyOptions;
-import dev.nuclr.plugin.panel.CopyProgress;
-import dev.nuclr.plugin.panel.CopyResult;
-import dev.nuclr.plugin.panel.CopyStatus;
-import dev.nuclr.plugin.panel.FilePanelProvider;
-import dev.nuclr.plugin.panel.PanelRoot;
+import javax.swing.JComponent;
 
-/**
- * {@link FilePanelProvider} for the local (default) filesystem.
- *
- * <p>Returns one {@link PanelRoot} per root directory reported by
- * {@link FileSystems#getDefault()} — e.g. {@code C:\}, {@code D:\} on Windows
- * or {@code /} on Linux/macOS.
- */
-public class LocalFilePanelProvider implements FilePanelProvider {
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-    @Override
-    public String id() {
-        return "local";
-    }
+import dev.nuclr.plugin.ApplicationPluginContext;
+import dev.nuclr.plugin.MenuResource;
+import dev.nuclr.plugin.PanelProviderPlugin;
+import dev.nuclr.plugin.PluginManifest;
+import dev.nuclr.plugin.PluginPathResource;
+import dev.nuclr.plugin.event.PluginCopyEvent;
+import dev.nuclr.plugin.event.PluginEvent;
+import dev.nuclr.plugin.event.PluginMoveEvent;
+import dev.nuclr.plugin.event.PluginOpenItemEvent;
+import dev.nuclr.plugin.event.PluginThemeUpdatedEvent;
+import dev.nuclr.plugin.event.bus.PluginEventListener;
+import lombok.extern.slf4j.Slf4j;
 
-    @Override
-    public String displayName() {
-        return "Local Filesystem";
-    }
+@Slf4j
+public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventListener {
 
-    @Override
-    public int priority() {
-        return 0;
-    }
+	private ApplicationPluginContext context;
+	private LocalFilePanel panel;
+	private boolean focused;
 
-    @Override
-    public List<PanelRoot> roots() {
-        var roots = new ArrayList<PanelRoot>();
-        FileSystems.getDefault().getRootDirectories()
-                .forEach(p -> roots.add(new PanelRoot(p.toString(), p)));
-        return roots;
-    }
+	public PluginManifest getPluginInfo() {
+		ObjectMapper objectMapper = context != null ? context.getObjectMapper() : new ObjectMapper();
+		try (var is = getClass().getResourceAsStream("/plugin.json")) {
+			if (is != null) {
+				return objectMapper.readValue(is, PluginManifest.class);
+			}
+		} catch (Exception e) {
+			log.error("Error reading /plugin.json for LocalFilePanelProvider", e);
+		}
+		return null;
+	}
 
-    @Override
-    public boolean supportsPath(Path path) {
-        return path != null && path.getFileSystem().equals(FileSystems.getDefault());
-    }
+	@Override
+	public JComponent getPanel() {
+		if (panel == null) {
+			panel = new LocalFilePanel(this, this::openDocumentation);
+		}
+		return panel;
+	}
 
-    @Override
-    public String validateCopy(List<Path> items, Path targetDirectory) {
-        if (!supportsPath(targetDirectory)) {
-            return "Target is not on the local filesystem.";
-        }
-        if (targetDirectory == null || !Files.isDirectory(targetDirectory)) {
-            return "Target directory is not available.";
-        }
-        if (items == null || items.isEmpty()) {
-            return "Nothing selected.";
-        }
-        return null;
-    }
+	@Override
+	public List<MenuResource> getMenuItems(PluginPathResource source) {
+		List<MenuResource> items = new ArrayList<>();
+		boolean isDirectory = source != null && source.getPath() != null && Files.isDirectory(source.getPath());
+		addDefaultMenuItems(items, source, isDirectory);
+		addAltMenuItems(items, source);
+		addCtrlMenuItems(items, source);
+		addShiftMenuItems(items, source, isDirectory);
+		return items;
+	}
 
-    @Override
-    public CopyResult copy(List<Path> items, Path targetDirectory, CopyOptions options, CopyProgress progress) {
-        var errors = new ArrayList<String>();
-        int copied = 0;
+	@Override
+	public void load(ApplicationPluginContext context) {
+		this.context = context;
+		context.getEventBus().subscribe(this);
+		log.info("Local filesystem panel plugin loaded");
+	}
 
-        for (Path source : items) {
-            if (progress.isCancelled()) {
-                return CopyResult.cancelled(copied, errors);
-            }
+	@Override
+	public void unload() {
+		if (context != null) {
+			context.getEventBus().unsubscribe(this);
+		}
+		log.info("Local filesystem panel plugin unloaded");
+	}
 
-            String targetName = options.targetNameOverride() != null
-                    ? options.targetNameOverride()
-                    : source.getFileName().toString();
-            Path target = targetDirectory.resolve(targetName);
-            try {
-                copied += copyPath(source, target, options, progress);
-            } catch (IOException e) {
-                errors.add(source + " -> " + e.getMessage());
-            }
-        }
+	@Override
+	public List<PluginPathResource> getChangeDriveResources() {
+		var resources = new ArrayList<PluginPathResource>();
+		FileSystems.getDefault().getRootDirectories().forEach(p -> {
+			var res = new PluginPathResource();
+			res.setPath(p);
+			res.setName(p.toString());
+			resources.add(res);
+		});
+		return resources;
+	}
 
-        if (!errors.isEmpty()) {
-            return copied > 0
-                    ? CopyResult.partial(copied, errors)
-                    : new CopyResult(CopyStatus.FAILED, copied, List.copyOf(errors), "Copy failed.");
-        }
-        return CopyResult.success(copied);
-    }
+	@Override
+	public boolean openItem(PluginPathResource resource, AtomicBoolean cancelled) {
+		if (cancelled != null && cancelled.get()) {
+			return false;
+		}
+		if (resource == null) {
+			return false;
+		}
+		LocalFilePanel view = (LocalFilePanel) getPanel();
+		Path path = resource.getPath();
+		if (path != null && Files.isDirectory(path)) {
+			view.showDirectory(path);
+			return true;
+		}
+		return false;
+	}
 
-    private int copyPath(Path source, Path target, CopyOptions options, CopyProgress progress) throws IOException {
-        if (progress.isCancelled()) {
-            return 0;
-        }
+	public boolean requestOpen(Path path) {
+		if (context == null || path == null) {
+			return false;
+		}
+		PluginPathResource resource = new PluginPathResource();
+		resource.setPath(path);
+		resource.setName(path.getFileName() != null ? path.getFileName().toString() : path.toString());
+		PluginOpenItemEvent event = new PluginOpenItemEvent(this, resource);
+		context.getEventBus().emit(event);
+		return event.isHandled();
+	}
 
-        progress.onItemStarted(source, target);
+	@Override
+	public boolean isMessageSupported(PluginEvent msg) {
+		return msg instanceof PluginThemeUpdatedEvent || msg instanceof LocalMenuActionEvent;
+	}
 
-        Path resolvedTarget = resolveTarget(target, options.collisionAction());
-        if (resolvedTarget == null) {
-            return 0;
-        }
+	@Override
+	public void handleMessage(PluginEvent e) {
+		if (e instanceof PluginThemeUpdatedEvent && panel != null) {
+			panel.repaint();
+			return;
+		}
+		if (!focused || !(e instanceof LocalMenuActionEvent actionEvent)) {
+			return;
+		}
+		if ("makeFolder".equals(actionEvent.getActionId())) {
+			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
+			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
+			return;
+		}
+		if ("delete".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).deleteSelection(false);
+			return;
+		}
+		if ("deletePermanent".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).deleteSelection(true);
+			return;
+		}
+		if ("copy".equals(actionEvent.getActionId())) {
+			context.getEventBus().emit(new PluginCopyEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			return;
+		}
+		if ("move".equals(actionEvent.getActionId())) {
+			context.getEventBus().emit(new PluginMoveEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			return;
+		}
+		if ("help".equals(actionEvent.getActionId())) {
+			openDocumentation();
+		}
+	}
 
-        if (Files.isDirectory(source)) {
-            Files.createDirectories(resolvedTarget);
-            int copied = 1;
-            if (!options.recursive()) {
-                progress.onItemCompleted(source, resolvedTarget);
-                return copied;
-            }
-            try (var stream = Files.list(source)) {
-                for (Path child : stream.toList()) {
-                    copied += copyPath(child, resolvedTarget.resolve(child.getFileName().toString()), options, progress);
-                }
-            }
-            progress.onItemCompleted(source, resolvedTarget);
-            return copied;
-        }
+	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
+		return new LocalMenuResource(name, keyStroke, new LocalMenuActionEvent(actionId, source));
+	}
 
-        Path parent = resolvedTarget.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
-        Files.copy(source, resolvedTarget, StandardCopyOption.REPLACE_EXISTING);
-        progress.onItemCompleted(source, resolvedTarget);
-        return 1;
-    }
+	private void openDocumentation() {
+		PluginManifest pluginInfo = getPluginInfo();
+		if (pluginInfo == null) {
+			return;
+		}
+		String docUrl = pluginInfo.getDocUrl();
+		if (docUrl == null || docUrl.isBlank()) {
+			log.warn("No documentation URL configured for {}", pluginInfo.getId());
+			return;
+		}
+		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+			log.warn("Desktop browse is not supported, cannot open {}", docUrl);
+			return;
+		}
+		try {
+			Desktop.getDesktop().browse(URI.create(docUrl));
+		} catch (Exception ex) {
+			log.warn("Cannot open documentation URL {}: {}", docUrl, ex.getMessage());
+		}
+	}
 
-    private Path resolveTarget(Path target, CollisionAction action) throws IOException {
-        if (!Files.exists(target)) {
-            return target;
-        }
+	private static void addDefaultMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+		items.add(menu("Help", "F1", "help", source));
+		items.add(menu("User Menu", "F2", "userMenu", source));
+		items.add(menu("View", "F3", "view", source));
+		items.add(menu("Edit", "F4", "edit", source));
+		items.add(menu("Copy", "F5", "copy", source));
+		items.add(menu(isDirectory ? "Move" : "Rename/Move", "F6", "move", source));
+		items.add(menu("Make Folder", "F7", "makeFolder", source));
+		items.add(menu("Delete", "F8", "delete", source));
+		items.add(menu("Quit", "F10", "quit", source));
+		items.add(menu("Plugins", "F11", "plugins", source));
+		items.add(menu("Screen", "F12", "screen", source));
+	}
 
-        return switch (action) {
-            case OVERWRITE -> target;
-            case SKIP -> null;
-            case KEEP_BOTH -> uniqueSibling(target);
-        };
-    }
+	private static void addAltMenuItems(List<MenuResource> items, PluginPathResource source) {
+		items.add(menu("Left", "Alt+F1", "left", source));
+		items.add(menu("Right", "Alt+F2", "right", source));
+		items.add(menu("Find", "Alt+F7", "find", source));
+		items.add(menu("History", "Alt+F8", "history", source));
+		items.add(menu("Fullscreen", "Alt+F9", "fullscreen", source));
+		items.add(menu("Tree", "Alt+F10", "tree", source));
+		items.add(menu("View History", "Alt+F11", "viewHistory", source));
+		items.add(menu("Folder History", "Alt+F12", "folderHistory", source));
+	}
 
-    private Path uniqueSibling(Path target) {
-        String name = target.getFileName().toString();
-        String base = name;
-        String ext = "";
-        int dot = name.lastIndexOf('.');
-        if (dot > 0) {
-            base = name.substring(0, dot);
-            ext = name.substring(dot);
-        }
+	private static void addCtrlMenuItems(List<MenuResource> items, PluginPathResource source) {
+		items.add(menu("Hide Left", "Ctrl+F1", "hideLeft", source));
+		items.add(menu("Hide Right", "Ctrl+F2", "hideRight", source));
+		items.add(menu("Sort by name", "Ctrl+F3", "sortByName", source));
+		items.add(menu("Sort by extension", "Ctrl+F4", "sortByExtension", source));
+		items.add(menu("Sort by modified", "Ctrl+F5", "sortByModifiedDate", source));
+		items.add(menu("Sort by size", "Ctrl+F6", "sortBySize", source));
+		items.add(menu("Unsort", "Ctrl+F7", "unsort", source));
+		items.add(menu("Sort by create", "Ctrl+F8", "sortByCreateDate", source));
+		items.add(menu("Sort by access", "Ctrl+F9", "sortByAccessTime", source));
+		items.add(menu("Sort menu", "Ctrl+F12", "sortByAccessTime", source));
+	}
 
-        Path candidate = target.resolveSibling(base + " - Copy" + ext);
-        int index = 2;
-        while (Files.exists(candidate)) {
-            candidate = target.resolveSibling(base + " - Copy (" + index + ")" + ext);
-            index++;
-        }
-        return candidate;
-    }
+	private static void addShiftMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+		items.add(menu("Create archive", "Shift+F1", "createArchive", source));
+		items.add(menu("Extract archive", "Shift+F2", "extractArchive", source));
+		items.add(menu("Create file", "Shift+F4", "createFile", source));
+		items.add(menu("Delete Permanently", "Shift+F8", "deletePermanent", source));
+		items.add(menu("Selection up", "Shift+F12", "selectionUp", source));
+	}
+
+	@Override
+	public void onFocusGained() {
+		focused = true;
+		((LocalFilePanel) getPanel()).setPluginFocused(true);
+	}
+
+	@Override
+	public void onFocusLost() {
+		focused = false;
+		if (panel != null) {
+			panel.setPluginFocused(false);
+		}
+	}
+
+	@Override
+	public boolean canSupport(PluginPathResource resource) {
+		return resource != null && resource.getPath() != null && Files.isDirectory(resource.getPath());
+	}
 }
