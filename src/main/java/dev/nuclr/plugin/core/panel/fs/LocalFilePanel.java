@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.ReadOnlyFileSystemException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
@@ -518,7 +519,17 @@ public class LocalFilePanel extends JPanel {
 			return;
 		}
 		if (entry.link()) {
-			if (provider != null && provider.requestOpen(entry.path())) {
+			Path resolvedPath = resolveLinkedPath(entry.path());
+			if (resolvedPath != null && Files.isDirectory(resolvedPath)) {
+				showDirectory(resolvedPath);
+				selectFirstRowAndScrollToTop();
+				return;
+			}
+			if (resolvedPath != null && provider != null && provider.requestOpen(resolvedPath)) {
+				return;
+			}
+			if (resolvedPath != null) {
+				openPathWithDefaultApplication(resolvedPath);
 				return;
 			}
 			openPathWithDefaultApplication(entry.path());
@@ -682,9 +693,19 @@ public class LocalFilePanel extends JPanel {
 			return true;
 		}
 		try {
-			return Files.isDirectory(path) && !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS);
+			BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+			return attributes.isSymbolicLink() || (attributes.isDirectory() && attributes.isOther());
 		} catch (Exception ex) {
 			return false;
+		}
+	}
+
+	private static Path resolveLinkedPath(Path path) {
+		try {
+			Path resolved = path.toRealPath();
+			return resolved.equals(path) ? null : resolved;
+		} catch (Exception ex) {
+			return null;
 		}
 	}
 
