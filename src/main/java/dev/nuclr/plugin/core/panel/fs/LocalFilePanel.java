@@ -43,6 +43,8 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
+import dev.nuclr.plugin.PluginPathResource;
+
 public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
@@ -335,6 +337,27 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
+	public Path getCurrentDirectory() {
+		return currentDirectory;
+	}
+
+	public PluginPathResource getSelectedResource() {
+		List<PluginPathResource> selected = getSelectedResources();
+		return selected.isEmpty() ? null : selected.get(0);
+	}
+
+	public List<PluginPathResource> getSelectedResources() {
+		int[] selectedRows = table.getSelectedRows();
+		List<PluginPathResource> resources = new ArrayList<>();
+		for (int selectedRow : selectedRows) {
+			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(selectedRow));
+			if (!entry.parent()) {
+				resources.add(toResource(entry));
+			}
+		}
+		return resources;
+	}
+
 	public void createNewFolder() {
 		createNewFolder(currentDirectory);
 	}
@@ -441,6 +464,14 @@ public class LocalFilePanel extends JPanel {
 		}
 
 		return entries;
+	}
+
+	private PluginPathResource toResource(LocalFilePanelModel.Entry entry) {
+		PluginPathResource resource = new PluginPathResource();
+		resource.setPath(entry.path());
+		resource.setName(entry.name());
+		resource.setSizeBytes(entry.sizeBytes());
+		return resource;
 	}
 
 	private List<LocalFilePanelModel.Entry> getSelectedEntriesForDelete() {
@@ -899,5 +930,9 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 }
+
+
+
+
 
 

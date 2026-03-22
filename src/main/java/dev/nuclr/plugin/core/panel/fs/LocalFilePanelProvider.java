@@ -18,20 +18,14 @@ import dev.nuclr.plugin.MenuResource;
 import dev.nuclr.plugin.PanelProviderPlugin;
 import dev.nuclr.plugin.PluginManifest;
 import dev.nuclr.plugin.PluginPathResource;
+import dev.nuclr.plugin.event.PluginCopyEvent;
 import dev.nuclr.plugin.event.PluginEvent;
+import dev.nuclr.plugin.event.PluginMoveEvent;
 import dev.nuclr.plugin.event.PluginOpenItemEvent;
 import dev.nuclr.plugin.event.PluginThemeUpdatedEvent;
 import dev.nuclr.plugin.event.bus.PluginEventListener;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * {@link PanelProviderPlugin} for the local (default) filesystem.
- *
- * <p>
- * Provides one {@link LocalPathResource} per root directory reported by
- * {@link FileSystems#getDefault()} - e.g. {@code C:\}, {@code D:\} on Windows
- * or {@code /} on Linux/macOS.
- */
 @Slf4j
 public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventListener {
 
@@ -63,7 +57,6 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	public List<MenuResource> getMenuItems(PluginPathResource source) {
 		List<MenuResource> items = new ArrayList<>();
 		boolean isDirectory = source != null && source.getPath() != null && Files.isDirectory(source.getPath());
-
 		addDefaultMenuItems(items, source, isDirectory);
 		addAltMenuItems(items, source);
 		addCtrlMenuItems(items, source);
@@ -138,20 +131,31 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 			panel.repaint();
 			return;
 		}
-		if (focused && e instanceof LocalMenuActionEvent actionEvent && "makeFolder".equals(actionEvent.getActionId())) {
+		if (!focused || !(e instanceof LocalMenuActionEvent actionEvent)) {
+			return;
+		}
+		if ("makeFolder".equals(actionEvent.getActionId())) {
 			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
 			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
 			return;
 		}
-		if (focused && e instanceof LocalMenuActionEvent actionEvent && "delete".equals(actionEvent.getActionId())) {
+		if ("delete".equals(actionEvent.getActionId())) {
 			((LocalFilePanel) getPanel()).deleteSelection(false);
 			return;
 		}
-		if (focused && e instanceof LocalMenuActionEvent actionEvent && "deletePermanent".equals(actionEvent.getActionId())) {
+		if ("deletePermanent".equals(actionEvent.getActionId())) {
 			((LocalFilePanel) getPanel()).deleteSelection(true);
 			return;
 		}
-		if (focused && e instanceof LocalMenuActionEvent actionEvent && "help".equals(actionEvent.getActionId())) {
+		if ("copy".equals(actionEvent.getActionId())) {
+			context.getEventBus().emit(new PluginCopyEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			return;
+		}
+		if ("move".equals(actionEvent.getActionId())) {
+			context.getEventBus().emit(new PluginMoveEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			return;
+		}
+		if ("help".equals(actionEvent.getActionId())) {
 			openDocumentation();
 		}
 	}
