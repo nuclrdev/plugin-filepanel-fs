@@ -53,7 +53,7 @@ public final class LocalFilePanelModel extends AbstractTableModel {
 		Entry entry = entries.get(rowIndex);
 		return switch (columnIndex) {
 			case 0 -> entry.name();
-			case 1 -> entry.parent() ? "" : (entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes()));
+			case 1 -> entry.parent() ? "" : (entry.link() ? "Link" : (entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes())));
 			case 2 -> formatModified(entry.modifiedTime());
 			default -> "";
 		};
@@ -86,6 +86,7 @@ public final class LocalFilePanelModel extends AbstractTableModel {
 			Path path,
 			String name,
 			boolean directory,
+			boolean link,
 			boolean parent,
 			boolean hidden,
 			boolean system,
@@ -94,7 +95,7 @@ public final class LocalFilePanelModel extends AbstractTableModel {
 			FileTime modifiedTime) {
 
 		public static Entry parent(Path parentPath) {
-			return new Entry(parentPath, "..", true, true, false, false, false, 0L, null);
+			return new Entry(parentPath, "..", true, false, true, false, false, false, 0L, null);
 		}
 	}
 

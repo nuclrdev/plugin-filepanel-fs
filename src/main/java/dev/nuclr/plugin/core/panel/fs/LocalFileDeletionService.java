@@ -127,7 +127,8 @@ final class LocalFileDeletionService {
 		int limit = Math.min(selectedEntries.size(), 8);
 		for (int i = 0; i < limit; i++) {
 			LocalFilePanelModel.Entry entry = selectedEntries.get(i);
-			lines.add((entry.directory() ? "[Folder] " : "[File] ") + entry.name());
+			String kind = entry.link() ? "[Link] " : (entry.directory() ? "[Folder] " : "[File] ");
+			lines.add(kind + entry.name());
 		}
 		if (selectedEntries.size() > limit) {
 			lines.add("... and " + (selectedEntries.size() - limit) + " more");

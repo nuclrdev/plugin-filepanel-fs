@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.ReadOnlyFileSystemException;
 import java.nio.file.attribute.DosFileAttributes;
@@ -487,7 +488,8 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private LocalFilePanelModel.Entry toEntry(Path path) {
-		boolean directory = Files.isDirectory(path);
+		boolean link = isLink(path);
+		boolean directory = !link && Files.isDirectory(path);
 		boolean hidden = isHidden(path);
 		boolean system = isSystem(path);
 		boolean executable = isExecutable(path, directory);
@@ -502,7 +504,7 @@ public class LocalFilePanel extends JPanel {
 			// Keep listing usable even when some attributes cannot be read.
 		}
 		String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
-		return new LocalFilePanelModel.Entry(path, name, directory, false, hidden, system, executable, sizeBytes, modifiedTime);
+		return new LocalFilePanelModel.Entry(path, name, directory, link, false, hidden, system, executable, sizeBytes, modifiedTime);
 	}
 
 	private void openSelectedEntry(boolean shiftDown) {
@@ -513,6 +515,13 @@ public class LocalFilePanel extends JPanel {
 		LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
 		if (entry.parent() && shiftDown) {
 			revealCurrentDirectoryInSystemExplorer();
+			return;
+		}
+		if (entry.link()) {
+			if (provider != null && provider.requestOpen(entry.path())) {
+				return;
+			}
+			openPathWithDefaultApplication(entry.path());
 			return;
 		}
 		if (entry.directory()) {
@@ -526,7 +535,7 @@ public class LocalFilePanel extends JPanel {
 		if (provider != null && provider.requestOpen(entry.path())) {
 			return;
 		}
-		openFileWithDefaultApplication(entry.path());
+		openPathWithDefaultApplication(entry.path());
 	}
 
 	private void moveSelectionByPage(int direction) {
@@ -586,7 +595,7 @@ public class LocalFilePanel extends JPanel {
 			statusLabel.setText("Go to parent directory");
 			return;
 		}
-		String type = entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes());
+		String type = entry.link() ? "Link" : (entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes()));
 		statusLabel.setText(entry.name() + "  |  " + type);
 	}
 
@@ -608,9 +617,17 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
-	private void selectRow(int row) {
-		table.setRowSelectionInterval(row, row);
-		table.scrollRectToVisible(table.getCellRect(row, 0, true));
+	private boolean selectRow(int row) {
+		int rowCount = table.getRowCount();
+		if (rowCount == 0) {
+			table.clearSelection();
+			updateStatus();
+			return false;
+		}
+		int boundedRow = Math.max(0, Math.min(row, rowCount - 1));
+		table.setRowSelectionInterval(boundedRow, boundedRow);
+		table.scrollRectToVisible(table.getCellRect(boundedRow, 0, true));
+		return true;
 	}
 
 	private Path resolveFolderCreationDirectory(Path preferredDirectory, Path fallbackContextPath) {
@@ -655,6 +672,17 @@ public class LocalFilePanel extends JPanel {
 	private static boolean isSystem(Path path) {
 		try {
 			return Files.readAttributes(path, DosFileAttributes.class).isSystem();
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+
+	private static boolean isLink(Path path) {
+		if (Files.isSymbolicLink(path)) {
+			return true;
+		}
+		try {
+			return Files.isDirectory(path) && !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS);
 		} catch (Exception ex) {
 			return false;
 		}
@@ -836,18 +864,18 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
-	private void openFileWithDefaultApplication(Path path) {
-		if (path == null || !Files.isRegularFile(path)) {
+	private void openPathWithDefaultApplication(Path path) {
+		if (path == null || !Files.exists(path)) {
 			return;
 		}
 		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-			showError("Error", "Opening files with the system default application is not supported on this platform.");
+			showError("Error", "Opening items with the system default application is not supported on this platform.");
 			return;
 		}
 		try {
 			Desktop.getDesktop().open(path.toFile());
 		} catch (Exception ex) {
-			showError("Error", "Cannot open file: " + ex.getMessage());
+			showError("Error", "Cannot open item: " + ex.getMessage());
 		}
 	}
 
