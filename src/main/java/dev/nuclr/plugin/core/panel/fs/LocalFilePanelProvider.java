@@ -155,6 +155,38 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 			context.getEventBus().emit(new PluginMoveEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
 			return;
 		}
+		if ("sortByName".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortByName();
+			return;
+		}
+		if ("sortByExtension".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortByExtension();
+			return;
+		}
+		if ("sortByModifiedDate".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortByModifiedDate();
+			return;
+		}
+		if ("sortBySize".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortBySize();
+			return;
+		}
+		if ("unsort".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).unsort();
+			return;
+		}
+		if ("sortByCreateDate".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortByCreateDate();
+			return;
+		}
+		if ("sortByAccessTime".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).sortByAccessTime();
+			return;
+		}
+		if ("sortMenu".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) getPanel()).showSortMenu();
+			return;
+		}
 		if ("help".equals(actionEvent.getActionId())) {
 			openDocumentation();
 		}
@@ -220,7 +252,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		items.add(menu("Unsort", "Ctrl+F7", "unsort", source));
 		items.add(menu("Sort by create", "Ctrl+F8", "sortByCreateDate", source));
 		items.add(menu("Sort by access", "Ctrl+F9", "sortByAccessTime", source));
-		items.add(menu("Sort menu", "Ctrl+F12", "sortByAccessTime", source));
+		items.add(menu("Sort menu", "Ctrl+F12", "sortMenu", source));
 	}
 
 	private static void addShiftMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {

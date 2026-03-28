@@ -83,6 +83,9 @@ public class LocalFilePanel extends JPanel {
 	private final AtomicLong directoryLoadGeneration;
 
 	private Path currentDirectory;
+	private List<LocalFilePanelModel.Entry> loadedEntries = List.of();
+	private SortMode sortMode = SortMode.NAME;
+	private boolean sortReversed;
 	private StringBuilder searchQuery;
 	private Popup searchPopup;
 	private boolean altSearchActive;
@@ -247,6 +250,23 @@ public class LocalFilePanel extends JPanel {
 				invertSelection();
 			}
 		});
+		bindSortShortcut("ctrl F3", "sortByNameShortcut", SortMode.NAME);
+		bindSortShortcut("ctrl F4", "sortByExtensionShortcut", SortMode.EXTENSION);
+		bindSortShortcut("ctrl F5", "sortByModifiedShortcut", SortMode.MODIFIED_DATE);
+		bindSortShortcut("ctrl F6", "sortBySizeShortcut", SortMode.SIZE);
+		bindSortShortcut("ctrl F7", "unsortShortcut", SortMode.UNSORTED);
+		bindSortShortcut("ctrl F8", "sortByCreateShortcut", SortMode.CREATED_DATE);
+		bindSortShortcut("ctrl F9", "sortByAccessShortcut", SortMode.ACCESS_TIME);
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke("ctrl F12"), "showSortMenu");
+		table.getActionMap().put("showSortMenu", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				showSortMenu();
+			}
+		});
 
 		table.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) {
@@ -371,6 +391,48 @@ public class LocalFilePanel extends JPanel {
 		return currentDirectory;
 	}
 
+	public void sortByName() {
+		setSortMode(SortMode.NAME);
+	}
+
+	public void sortByExtension() {
+		setSortMode(SortMode.EXTENSION);
+	}
+
+	public void sortByModifiedDate() {
+		setSortMode(SortMode.MODIFIED_DATE);
+	}
+
+	public void sortBySize() {
+		setSortMode(SortMode.SIZE);
+	}
+
+	public void unsort() {
+		setSortMode(SortMode.UNSORTED);
+	}
+
+	public void sortByCreateDate() {
+		setSortMode(SortMode.CREATED_DATE);
+	}
+
+	public void sortByAccessTime() {
+		setSortMode(SortMode.ACCESS_TIME);
+	}
+
+	public void showSortMenu() {
+		SortMode selectedMode = (SortMode) JOptionPane.showInputDialog(
+				this,
+				"Select file sort mode:",
+				"Sort Menu",
+				JOptionPane.PLAIN_MESSAGE,
+				null,
+				SortMode.values(),
+				sortMode);
+		if (selectedMode != null) {
+			setSortMode(selectedMode);
+		}
+	}
+
 	public PluginPathResource getSelectedResource() {
 		List<PluginPathResource> selected = getSelectedResources();
 		return selected.isEmpty() ? null : selected.get(0);
@@ -483,11 +545,7 @@ public class LocalFilePanel extends JPanel {
 		}
 
 		try (var stream = Files.list(directory)) {
-			stream.sorted(Comparator
-					.comparing((Path path) -> !Files.isDirectory(path))
-					.thenComparing(path -> path.getFileName() == null ? path.toString() : path.getFileName().toString(),
-							String.CASE_INSENSITIVE_ORDER))
-					.forEach(path -> entries.add(toEntry(path)));
+			stream.forEach(path -> entries.add(toEntry(path)));
 		} catch (IOException ex) {
 			return new DirectoryReadResult(List.of(), "Cannot read " + directory + ": " + ex.getMessage());
 		}
@@ -523,16 +581,33 @@ public class LocalFilePanel extends JPanel {
 		boolean executable = isExecutable(path, directory);
 		long sizeBytes = 0L;
 		FileTime modifiedTime = null;
+		FileTime createdTime = null;
+		FileTime accessTime = null;
 		try {
+			BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+			modifiedTime = attributes.lastModifiedTime();
+			createdTime = attributes.creationTime();
+			accessTime = attributes.lastAccessTime();
 			if (!directory) {
-				sizeBytes = Files.size(path);
+				sizeBytes = attributes.size();
 			}
-			modifiedTime = Files.getLastModifiedTime(path);
 		} catch (IOException ignored) {
 			// Keep listing usable even when some attributes cannot be read.
 		}
 		String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
-		return new LocalFilePanelModel.Entry(path, name, directory, link, false, hidden, system, executable, sizeBytes, modifiedTime);
+		return new LocalFilePanelModel.Entry(
+				path,
+				name,
+				directory,
+				link,
+				false,
+				hidden,
+				system,
+				executable,
+				sizeBytes,
+				modifiedTime,
+				createdTime,
+				accessTime);
 	}
 
 	private void openSelectedEntry(boolean shiftDown) {
@@ -1053,12 +1128,46 @@ public class LocalFilePanel extends JPanel {
 		}
 		loadingOverlayTimer.stop();
 		setLoadingOverlayVisible(false);
-		model.setEntries(result.entries());
+		loadedEntries = result.entries();
 		if (result.errorMessage() != null) {
+			model.setEntries(List.of());
 			statusLabel.setText(result.errorMessage());
 			focusTable();
 			return;
 		}
+		refreshDisplayedEntries(selectedPath);
+	}
+
+	private void setLoadingOverlayVisible(boolean visible) {
+		loadingOverlay.setVisible(visible);
+		loadingOverlay.repaint();
+	}
+
+	private void bindSortShortcut(String keyStroke, String actionId, SortMode mode) {
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke(keyStroke), actionId);
+		table.getActionMap().put(actionId, new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				setSortMode(mode);
+			}
+		});
+	}
+
+	private void setSortMode(SortMode newSortMode) {
+		if (sortMode == newSortMode) {
+			sortReversed = !sortReversed;
+		} else {
+			sortMode = newSortMode;
+			sortReversed = false;
+		}
+		refreshDisplayedEntries(getSelectedEntryPath());
+	}
+
+	private void refreshDisplayedEntries(Path selectedPath) {
+		model.setEntries(sortedEntries(loadedEntries));
 		if (model.getRowCount() > 0) {
 			if (selectedPath != null && selectPath(selectedPath)) {
 				focusTable();
@@ -1072,9 +1181,74 @@ public class LocalFilePanel extends JPanel {
 		focusTable();
 	}
 
-	private void setLoadingOverlayVisible(boolean visible) {
-		loadingOverlay.setVisible(visible);
-		loadingOverlay.repaint();
+	private List<LocalFilePanelModel.Entry> sortedEntries(List<LocalFilePanelModel.Entry> entries) {
+		List<LocalFilePanelModel.Entry> sorted = new ArrayList<>(entries);
+		if (sortMode == SortMode.UNSORTED) {
+			if (sortReversed) {
+				reverseEntriesPreservingParent(sorted);
+			}
+			return sorted;
+		}
+		sorted.sort(entryComparator());
+		return sorted;
+	}
+
+	private Comparator<LocalFilePanelModel.Entry> entryComparator() {
+		Comparator<LocalFilePanelModel.Entry> groupingComparator = Comparator
+				.comparing((LocalFilePanelModel.Entry entry) -> entry.parent() ? 0 : (entry.directory() ? 1 : 2));
+		Comparator<LocalFilePanelModel.Entry> detailComparator = switch (sortMode) {
+			case NAME -> Comparator.comparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case EXTENSION -> Comparator
+					.comparing(this::extensionKey)
+					.thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case MODIFIED_DATE -> Comparator
+					.comparing(LocalFilePanelModel.Entry::modifiedTime, Comparator.nullsLast(Comparator.reverseOrder()))
+					.thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case SIZE -> Comparator
+					.comparing((LocalFilePanelModel.Entry entry) -> entry.directory() ? Long.valueOf(-1L) : Long.valueOf(entry.sizeBytes()),
+							Comparator.reverseOrder())
+					.thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case CREATED_DATE -> Comparator
+					.comparing(LocalFilePanelModel.Entry::createdTime, Comparator.nullsLast(Comparator.reverseOrder()))
+					.thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case ACCESS_TIME -> Comparator
+					.comparing(LocalFilePanelModel.Entry::accessTime, Comparator.nullsLast(Comparator.reverseOrder()))
+					.thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT));
+			case UNSORTED -> Comparator.comparing(entry -> 0);
+		};
+		if (sortReversed) {
+			detailComparator = detailComparator.reversed();
+		}
+		return groupingComparator.thenComparing(detailComparator);
+	}
+
+	private Path getSelectedEntryPath() {
+		int selectedRow = table.getSelectedRow();
+		if (selectedRow < 0) {
+			return null;
+		}
+		return model.getEntryAt(table.convertRowIndexToModel(selectedRow)).path();
+	}
+
+	private String extensionKey(LocalFilePanelModel.Entry entry) {
+		if (entry.directory()) {
+			return "";
+		}
+		String name = entry.name();
+		int dot = name.lastIndexOf('.');
+		return dot >= 0 && dot < name.length() - 1 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+	}
+
+	private void reverseEntriesPreservingParent(List<LocalFilePanelModel.Entry> entries) {
+		if (entries.size() <= 1) {
+			return;
+		}
+		int startIndex = !entries.isEmpty() && entries.get(0).parent() ? 1 : 0;
+		for (int left = startIndex, right = entries.size() - 1; left < right; left++, right--) {
+			LocalFilePanelModel.Entry tmp = entries.get(left);
+			entries.set(left, entries.get(right));
+			entries.set(right, tmp);
+		}
 	}
 
 	private static boolean pathEquals(Path first, Path second) {
@@ -1129,6 +1303,27 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private record DirectoryReadResult(List<LocalFilePanelModel.Entry> entries, String errorMessage) {
+	}
+
+	private enum SortMode {
+		NAME("Sort by name"),
+		EXTENSION("Sort by extension"),
+		MODIFIED_DATE("Sort by modified"),
+		SIZE("Sort by size"),
+		UNSORTED("Unsort"),
+		CREATED_DATE("Sort by create"),
+		ACCESS_TIME("Sort by access");
+
+		private final String displayName;
+
+		SortMode(String displayName) {
+			this.displayName = displayName;
+		}
+
+		@Override
+		public String toString() {
+			return displayName;
+		}
 	}
 }
 
