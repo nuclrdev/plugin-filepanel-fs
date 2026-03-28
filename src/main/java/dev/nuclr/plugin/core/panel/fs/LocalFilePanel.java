@@ -218,6 +218,16 @@ public class LocalFilePanel extends JPanel {
 				toggleSelectionAndAdvance();
 			}
 		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke(KeyEvent.VK_MULTIPLY, 0), "invertSelection");
+		table.getActionMap().put("invertSelection", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				invertSelection();
+			}
+		});
 
 		table.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) {
@@ -593,6 +603,41 @@ public class LocalFilePanel extends JPanel {
 		table.getColumnModel().getSelectionModel().setAnchorSelectionIndex(0);
 		table.repaint();
 		table.scrollRectToVisible(table.getCellRect(nextRow, 0, true));
+	}
+
+	private void invertSelection() {
+		int rowCount = model.getRowCount();
+		if (rowCount == 0) {
+			return;
+		}
+
+		int currentRow = table.getSelectionModel().getLeadSelectionIndex();
+		if (currentRow < 0) {
+			currentRow = table.getSelectedRow();
+		}
+		if (currentRow < 0) {
+			currentRow = 0;
+		}
+
+		List<Integer> rowsToSelect = new ArrayList<>();
+		for (int row = 0; row < rowCount; row++) {
+			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
+			if (!entry.parent() && !table.isRowSelected(row)) {
+				rowsToSelect.add(row);
+			}
+		}
+
+		table.clearSelection();
+		for (int row : rowsToSelect) {
+			table.addRowSelectionInterval(row, row);
+		}
+
+		table.getSelectionModel().setLeadSelectionIndex(currentRow);
+		table.getSelectionModel().setAnchorSelectionIndex(currentRow);
+		table.getColumnModel().getSelectionModel().setLeadSelectionIndex(0);
+		table.getColumnModel().getSelectionModel().setAnchorSelectionIndex(0);
+		table.repaint();
+		table.scrollRectToVisible(table.getCellRect(currentRow, 0, true));
 	}
 
 	private void updateStatus() {
