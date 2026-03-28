@@ -1,6 +1,7 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Font;
@@ -26,14 +27,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.OverlayLayout;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.Timer;
 import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
@@ -69,6 +76,11 @@ public class LocalFilePanel extends JPanel {
 	private final Runnable helpAction;
 	private final JLabel searchLabel;
 	private final LocalFileDeletionService deletionService;
+	private final JScrollPane tableScrollPane;
+	private final JPanel centerPanel;
+	private final JPanel loadingOverlay;
+	private final Timer loadingOverlayTimer;
+	private final AtomicLong directoryLoadGeneration;
 
 	private Path currentDirectory;
 	private StringBuilder searchQuery;
@@ -82,9 +94,15 @@ public class LocalFilePanel extends JPanel {
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
 		searchLabel = new JLabel();
+		tableScrollPane = new JScrollPane(table);
+		centerPanel = new JPanel();
+		loadingOverlay = createLoadingOverlay();
 		this.provider = provider;
 		this.helpAction = helpAction;
 		deletionService = new LocalFileDeletionService();
+		directoryLoadGeneration = new AtomicLong();
+		loadingOverlayTimer = new Timer(150, e -> setLoadingOverlayVisible(true));
+		loadingOverlayTimer.setRepeats(false);
 		inactiveBorder = BorderFactory.createEmptyBorder(4, 4, 4, 4);
 		activeBorder = BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(
@@ -98,6 +116,7 @@ public class LocalFilePanel extends JPanel {
 
 		setLayout(new BorderLayout(0, 4));
 		setBorder(inactiveBorder);
+		centerPanel.setLayout(new OverlayLayout(centerPanel));
 
 		pathLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
 		statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
@@ -301,8 +320,10 @@ public class LocalFilePanel extends JPanel {
 			}
 		});
 
+		centerPanel.add(loadingOverlay);
+		centerPanel.add(tableScrollPane);
 		add(pathLabel, BorderLayout.NORTH);
-		add(new JScrollPane(table), BorderLayout.CENTER);
+		add(centerPanel, BorderLayout.CENTER);
 		add(statusLabel, BorderLayout.SOUTH);
 	}
 
@@ -338,15 +359,12 @@ public class LocalFilePanel extends JPanel {
 		currentDirectory = path;
 		pathLabel.setText(path == null ? " " : path.toString());
 		hideSearchPopup();
-		model.setEntries(readEntries(path));
-		if (model.getRowCount() > 0) {
-			if (selectedPath != null && selectPath(selectedPath)) {
-				return;
-			}
-			selectFirstRowAndScrollToTop();
-		} else {
-			statusLabel.setText(" ");
-		}
+		long loadGeneration = directoryLoadGeneration.incrementAndGet();
+		startDirectoryLoadIndicator(path);
+		Thread.ofVirtual().start(() -> {
+			DirectoryReadResult result = readEntries(path);
+			SwingUtilities.invokeLater(() -> applyDirectoryReadResult(loadGeneration, path, selectedPath, result));
+		});
 	}
 
 	public Path getCurrentDirectory() {
@@ -453,9 +471,9 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
-	private List<LocalFilePanelModel.Entry> readEntries(Path directory) {
+	private DirectoryReadResult readEntries(Path directory) {
 		if (directory == null || !Files.isDirectory(directory)) {
-			return List.of();
+			return new DirectoryReadResult(List.of(), null);
 		}
 
 		List<LocalFilePanelModel.Entry> entries = new ArrayList<>();
@@ -471,11 +489,10 @@ public class LocalFilePanel extends JPanel {
 							String.CASE_INSENSITIVE_ORDER))
 					.forEach(path -> entries.add(toEntry(path)));
 		} catch (IOException ex) {
-			entries.clear();
-			statusLabel.setText("Cannot read " + directory + ": " + ex.getMessage());
+			return new DirectoryReadResult(List.of(), "Cannot read " + directory + ": " + ex.getMessage());
 		}
 
-		return entries;
+		return new DirectoryReadResult(entries, null);
 	}
 
 	private PluginPathResource toResource(LocalFilePanelModel.Entry entry) {
@@ -977,6 +994,93 @@ public class LocalFilePanel extends JPanel {
 		return event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event);
 	}
 
+	private JPanel createLoadingOverlay() {
+		JPanel overlay = new JPanel();
+		overlay.setOpaque(true);
+		overlay.setBackground(new Color(0, 0, 0, 110));
+		overlay.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+		overlay.setLayout(new BoxLayout(overlay, BoxLayout.Y_AXIS));
+		overlay.setAlignmentX(0.5f);
+		overlay.setAlignmentY(0.5f);
+
+		JLabel title = new JLabel("Loading folder...");
+		title.setAlignmentX(Component.CENTER_ALIGNMENT);
+		title.setForeground(Color.WHITE);
+		title.setFont(title.getFont().deriveFont(Font.BOLD));
+
+		JProgressBar progressBar = new JProgressBar();
+		progressBar.setAlignmentX(Component.CENTER_ALIGNMENT);
+		progressBar.setIndeterminate(true);
+		progressBar.setMaximumSize(new java.awt.Dimension(220, 18));
+		progressBar.setPreferredSize(new java.awt.Dimension(220, 18));
+
+		JLabel hint = new JLabel("Large or sleeping drives can take a moment.");
+		hint.setAlignmentX(Component.CENTER_ALIGNMENT);
+		hint.setForeground(new Color(230, 230, 230));
+
+		JPanel card = new JPanel();
+		card.setOpaque(true);
+		card.setBackground(new Color(32, 32, 32, 235));
+		card.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(new Color(90, 90, 90)),
+				BorderFactory.createEmptyBorder(14, 18, 14, 18)));
+		card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+		card.setMaximumSize(new java.awt.Dimension(280, 120));
+		card.add(title);
+		card.add(Box.createVerticalStrut(10));
+		card.add(progressBar);
+		card.add(Box.createVerticalStrut(10));
+		card.add(hint);
+
+		overlay.add(Box.createVerticalGlue());
+		card.setAlignmentX(Component.CENTER_ALIGNMENT);
+		overlay.add(card);
+		overlay.add(Box.createVerticalGlue());
+		overlay.setVisible(false);
+		return overlay;
+	}
+
+	private void startDirectoryLoadIndicator(Path path) {
+		loadingOverlayTimer.stop();
+		setLoadingOverlayVisible(false);
+		statusLabel.setText(path == null ? " " : "Opening " + path + "...");
+		loadingOverlayTimer.start();
+	}
+
+	private void applyDirectoryReadResult(long loadGeneration, Path path, Path selectedPath, DirectoryReadResult result) {
+		if (loadGeneration != directoryLoadGeneration.get() || !pathEquals(path, currentDirectory)) {
+			return;
+		}
+		loadingOverlayTimer.stop();
+		setLoadingOverlayVisible(false);
+		model.setEntries(result.entries());
+		if (result.errorMessage() != null) {
+			statusLabel.setText(result.errorMessage());
+			focusTable();
+			return;
+		}
+		if (model.getRowCount() > 0) {
+			if (selectedPath != null && selectPath(selectedPath)) {
+				focusTable();
+				return;
+			}
+			selectFirstRowAndScrollToTop();
+			focusTable();
+			return;
+		}
+		statusLabel.setText(" ");
+		focusTable();
+	}
+
+	private void setLoadingOverlayVisible(boolean visible) {
+		loadingOverlay.setVisible(visible);
+		loadingOverlay.repaint();
+	}
+
+	private static boolean pathEquals(Path first, Path second) {
+		return first == null ? second == null : first.equals(second);
+	}
+
 	private void applyUiFonts() {
 		Font baseFont = resolveBaseFont();
 		table.setFont(baseFont);
@@ -1022,6 +1126,9 @@ public class LocalFilePanel extends JPanel {
 			}
 			return component;
 		}
+	}
+
+	private record DirectoryReadResult(List<LocalFilePanelModel.Entry> entries, String errorMessage) {
 	}
 }
 
