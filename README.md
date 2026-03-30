@@ -26,8 +26,8 @@ This plugin registers a `FilePanelProvider` that exposes one root per entry retu
 
 - Java 21
 - Maven 3.9+ (recommended)
-- Nuclr plugin SDK dependency:
-  - `dev.nuclr:plugins-sdk:1.0.0`
+- Nuclr platform SDK dependency:
+  - `dev.nuclr:platform-sdk:2.0.1`
 
 ## Build
 
@@ -56,18 +56,6 @@ Plugin ZIP contents:
 - `plugin.json`
 - `filepanel-fs-1.0.0.jar`
 - `lib/` runtime dependencies
-
-## Signing Notes
-
-The current Maven `verify` phase expects a PKCS#12 keystore at:
-
-`C:/nuclr/key/nuclr-signing.p12`
-
-with alias `nuclr` and password supplied by:
-
-- Maven property: `jarsigner.storepass`
-
-If you do not have this key in your environment, run `mvn clean package` (without `verify`) or update `pom.xml` signing configuration for your setup.
 
 ## Install in Nuclr
 

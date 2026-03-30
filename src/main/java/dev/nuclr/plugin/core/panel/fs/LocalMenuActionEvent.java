@@ -1,9 +1,8 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import dev.nuclr.plugin.PluginPathResource;
-import dev.nuclr.plugin.event.PluginEvent;
 
-public final class LocalMenuActionEvent extends PluginEvent {
+public final class LocalMenuActionEvent {
 
 	private final String actionId;
 	private final PluginPathResource source;

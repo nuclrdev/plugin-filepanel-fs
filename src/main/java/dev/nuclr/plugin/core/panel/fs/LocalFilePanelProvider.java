@@ -6,34 +6,38 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JComponent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import dev.nuclr.plugin.ApplicationPluginContext;
 import dev.nuclr.plugin.MenuResource;
-import dev.nuclr.plugin.PanelProviderPlugin;
 import dev.nuclr.plugin.PluginManifest;
 import dev.nuclr.plugin.PluginPathResource;
-import dev.nuclr.plugin.event.PluginCopyEvent;
-import dev.nuclr.plugin.event.PluginEvent;
-import dev.nuclr.plugin.event.PluginMoveEvent;
-import dev.nuclr.plugin.event.PluginOpenItemEvent;
-import dev.nuclr.plugin.event.PluginThemeUpdatedEvent;
-import dev.nuclr.plugin.event.bus.PluginEventListener;
+import dev.nuclr.plugin.ResourceContentPlugin;
+import dev.nuclr.platform.events.NuclrEventListener;
+import dev.nuclr.platform.plugin.NuclrPluginContext;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventListener {
+public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEventListener {
 
-	private ApplicationPluginContext context;
+	private static final String MENU_ACTION_EVENT_TYPE = "dev.nuclr.plugin.core.panel.fs.menuAction";
+	private static final String THEME_UPDATED_EVENT_TYPE = "dev.nuclr.platform.theme.updated";
+	private static final String OPEN_RESOURCE_EVENT_TYPE = "dev.nuclr.platform.resource.open";
+	private static final String COPY_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.copy";
+	private static final String MOVE_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.move";
+
+	private NuclrPluginContext context;
 	private LocalFilePanel panel;
 	private boolean focused;
 
-	public PluginManifest getPluginInfo() {
+	@Override
+	public PluginManifest manifest() {
 		ObjectMapper objectMapper = context != null ? context.getObjectMapper() : new ObjectMapper();
 		try (var is = getClass().getResourceAsStream("/plugin.json")) {
 			if (is != null) {
@@ -46,7 +50,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public JComponent getPanel() {
+	public JComponent panel() {
 		if (panel == null) {
 			panel = new LocalFilePanel(this, this::openDocumentation);
 		}
@@ -54,7 +58,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public List<MenuResource> getMenuItems(PluginPathResource source) {
+	public List<MenuResource> menuItems(PluginPathResource source) {
 		List<MenuResource> items = new ArrayList<>();
 		boolean isDirectory = source != null && source.getPath() != null && Files.isDirectory(source.getPath());
 		addDefaultMenuItems(items, source, isDirectory);
@@ -65,7 +69,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public void load(ApplicationPluginContext context) {
+	public void load(NuclrPluginContext context) {
 		this.context = context;
 		context.getEventBus().subscribe(this);
 		log.info("Local filesystem panel plugin loaded");
@@ -92,14 +96,14 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public boolean openItem(PluginPathResource resource, AtomicBoolean cancelled) {
+	public boolean openResource(PluginPathResource resource, AtomicBoolean cancelled) {
 		if (cancelled != null && cancelled.get()) {
 			return false;
 		}
 		if (resource == null) {
 			return false;
 		}
-		LocalFilePanel view = (LocalFilePanel) getPanel();
+		LocalFilePanel view = (LocalFilePanel) panel();
 		Path path = resource.getPath();
 		if (path != null && Files.isDirectory(path)) {
 			view.showDirectory(path);
@@ -115,76 +119,88 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		PluginPathResource resource = new PluginPathResource();
 		resource.setPath(path);
 		resource.setName(path.getFileName() != null ? path.getFileName().toString() : path.toString());
-		PluginOpenItemEvent event = new PluginOpenItemEvent(this, resource);
-		context.getEventBus().emit(event);
-		return event.isHandled();
+		Map<String, Object> event = new HashMap<>();
+		event.put("sourceProvider", this);
+		event.put("resource", resource);
+		context.getEventBus().emit(OPEN_RESOURCE_EVENT_TYPE, event);
+		return false;
 	}
 
 	@Override
-	public boolean isMessageSupported(PluginEvent msg) {
-		return msg instanceof PluginThemeUpdatedEvent || msg instanceof LocalMenuActionEvent;
+	public boolean isMessageSupported(String type) {
+		return THEME_UPDATED_EVENT_TYPE.equals(type) || MENU_ACTION_EVENT_TYPE.equals(type);
 	}
 
 	@Override
-	public void handleMessage(PluginEvent e) {
-		if (e instanceof PluginThemeUpdatedEvent && panel != null) {
+	public void handleMessage(String type, Map<String, Object> event) {
+		if (THEME_UPDATED_EVENT_TYPE.equals(type) && panel != null) {
 			panel.repaint();
 			return;
 		}
-		if (!focused || !(e instanceof LocalMenuActionEvent actionEvent)) {
+		if (!MENU_ACTION_EVENT_TYPE.equals(type) || !focused) {
+			return;
+		}
+		LocalMenuActionEvent actionEvent = toMenuActionEvent(event);
+		if (actionEvent == null) {
 			return;
 		}
 		if ("makeFolder".equals(actionEvent.getActionId())) {
 			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
-			((LocalFilePanel) getPanel()).createNewFolder(sourcePath);
+			((LocalFilePanel) panel()).createNewFolder(sourcePath);
 			return;
 		}
 		if ("delete".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).deleteSelection(false);
+			((LocalFilePanel) panel()).deleteSelection(false);
 			return;
 		}
 		if ("deletePermanent".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).deleteSelection(true);
+			((LocalFilePanel) panel()).deleteSelection(true);
 			return;
 		}
 		if ("copy".equals(actionEvent.getActionId())) {
-			context.getEventBus().emit(new PluginCopyEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			Map<String, Object> payload = new HashMap<>();
+			payload.put("sourceProvider", this);
+			payload.put("resources", ((LocalFilePanel) panel()).getSelectedResources());
+			context.getEventBus().emit(COPY_RESOURCES_EVENT_TYPE, payload);
 			return;
 		}
 		if ("move".equals(actionEvent.getActionId())) {
-			context.getEventBus().emit(new PluginMoveEvent(this, ((LocalFilePanel) getPanel()).getSelectedResources()));
+			Map<String, Object> payload = new HashMap<>();
+			payload.put("sourceProvider", this);
+			payload.put("resources", ((LocalFilePanel) panel()).getSelectedResources());
+			context.getEventBus().emit(MOVE_RESOURCES_EVENT_TYPE, payload);
 			return;
 		}
 		if ("sortByName".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortByName();
+			((LocalFilePanel) panel()).sortByName();
 			return;
 		}
 		if ("sortByExtension".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortByExtension();
+			((LocalFilePanel) panel()).sortByExtension();
 			return;
 		}
 		if ("sortByModifiedDate".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortByModifiedDate();
+			((LocalFilePanel) panel()).sortByModifiedDate();
 			return;
 		}
 		if ("sortBySize".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortBySize();
+			((LocalFilePanel) panel()).sortBySize();
 			return;
 		}
 		if ("unsort".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).unsort();
+			((LocalFilePanel) panel()).unsort();
 			return;
 		}
 		if ("sortByCreateDate".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortByCreateDate();
+			((LocalFilePanel) panel()).sortByCreateDate();
 			return;
 		}
 		if ("sortByAccessTime".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).sortByAccessTime();
+			((LocalFilePanel) panel()).sortByAccessTime();
 			return;
 		}
 		if ("sortMenu".equals(actionEvent.getActionId())) {
-			((LocalFilePanel) getPanel()).showSortMenu();
+			((LocalFilePanel) panel()).showSortMenu();
 			return;
 		}
 		if ("help".equals(actionEvent.getActionId())) {
@@ -193,11 +209,11 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
-		return new LocalMenuResource(name, keyStroke, new LocalMenuActionEvent(actionId, source));
+		return new LocalMenuResource(name, keyStroke, MENU_ACTION_EVENT_TYPE);
 	}
 
 	private void openDocumentation() {
-		PluginManifest pluginInfo = getPluginInfo();
+		PluginManifest pluginInfo = manifest();
 		if (pluginInfo == null) {
 			return;
 		}
@@ -215,6 +231,60 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 		} catch (Exception ex) {
 			log.warn("Cannot open documentation URL {}: {}", docUrl, ex.getMessage());
 		}
+	}
+
+	private static LocalMenuActionEvent toMenuActionEvent(Map<String, Object> event) {
+		if (event == null) {
+			return null;
+		}
+		Object label = event.get("label");
+		Object resource = event.get("resource");
+		PluginPathResource source = resource instanceof PluginPathResource pathResource ? pathResource : null;
+		String actionId = actionIdFromLabel(label instanceof String text ? text : null);
+		return actionId != null ? new LocalMenuActionEvent(actionId, source) : null;
+	}
+
+	private static String actionIdFromLabel(String label) {
+		if (label == null) {
+			return null;
+		}
+		return switch (label) {
+		case "Help" -> "help";
+		case "User Menu" -> "userMenu";
+		case "View" -> "view";
+		case "Edit" -> "edit";
+		case "Copy" -> "copy";
+		case "Move", "Rename/Move" -> "move";
+		case "Make Folder" -> "makeFolder";
+		case "Delete" -> "delete";
+		case "Quit" -> "quit";
+		case "Plugins" -> "plugins";
+		case "Screen" -> "screen";
+		case "Left" -> "left";
+		case "Right" -> "right";
+		case "Find" -> "find";
+		case "History" -> "history";
+		case "Fullscreen" -> "fullscreen";
+		case "Tree" -> "tree";
+		case "View History" -> "viewHistory";
+		case "Folder History" -> "folderHistory";
+		case "Hide Left" -> "hideLeft";
+		case "Hide Right" -> "hideRight";
+		case "Sort by name" -> "sortByName";
+		case "Sort by extension" -> "sortByExtension";
+		case "Sort by modified" -> "sortByModifiedDate";
+		case "Sort by size" -> "sortBySize";
+		case "Unsort" -> "unsort";
+		case "Sort by create" -> "sortByCreateDate";
+		case "Sort by access" -> "sortByAccessTime";
+		case "Sort menu" -> "sortMenu";
+		case "Create archive" -> "createArchive";
+		case "Extract archive" -> "extractArchive";
+		case "Create file" -> "createFile";
+		case "Delete Permanently" -> "deletePermanent";
+		case "Selection up" -> "selectionUp";
+		default -> null;
+		};
 	}
 
 	private static void addDefaultMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
@@ -264,12 +334,20 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public void onFocusGained() {
-		focused = true;
-		((LocalFilePanel) getPanel()).setPluginFocused(true);
+	public void closeResource() {
+		// The local filesystem panel keeps state in its Swing component and does not require explicit teardown here.
 	}
 
 	@Override
+	public int priority() {
+		return 0;
+	}
+
+	public void onFocusGained() {
+		focused = true;
+		((LocalFilePanel) panel()).setPluginFocused(true);
+	}
+
 	public void onFocusLost() {
 		focused = false;
 		if (panel != null) {
@@ -278,7 +356,7 @@ public class LocalFilePanelProvider implements PanelProviderPlugin, PluginEventL
 	}
 
 	@Override
-	public boolean canSupport(PluginPathResource resource) {
+	public boolean supports(PluginPathResource resource) {
 		return resource != null && resource.getPath() != null && Files.isDirectory(resource.getPath());
 	}
 }
