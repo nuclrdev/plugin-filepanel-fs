@@ -21,7 +21,7 @@
 		<dependency>
 			<groupId>dev.nuclr</groupId>
 			<artifactId>platform-sdk</artifactId>
-			<version>2.0.1</version>
+			<version>2.0.3</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -34,12 +34,6 @@
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
 			<version>2.0.17</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.21.1</version>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
@@ -92,31 +86,12 @@
 				</executions>
 			</plugin>
 
-			<!-- Copy plugin jar + plugin.json into target/plugin (zip root) -->
+			<!-- Copy plugin jar into target/plugin (zip root) -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
 				<version>3.3.1</version>
 				<executions>
-					<execution>
-						<id>copy-plugin-json</id>
-						<phase>package</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>${project.build.directory}/plugin</outputDirectory>
-							<resources>
-								<resource>
-									<directory>src/main/resources</directory>
-									<includes>
-										<include>plugin.json</include>
-									</includes>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-
 					<execution>
 						<id>copy-plugin-jar</id>
 						<phase>package</phase>

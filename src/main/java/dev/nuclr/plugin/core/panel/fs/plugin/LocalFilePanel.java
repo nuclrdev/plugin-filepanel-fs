@@ -1,4 +1,4 @@
-package dev.nuclr.plugin.core.panel.fs;
+package dev.nuclr.plugin.core.panel.fs.plugin;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -35,24 +35,25 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.OverlayLayout;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
-import javax.swing.Timer;
 import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
+import javax.swing.OverlayLayout;
 import javax.swing.Popup;
 import javax.swing.PopupFactory;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
-import dev.nuclr.plugin.PluginPathResource;
+import dev.nuclr.plugin.NuclrResourcePath;
+import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
 
 public class LocalFilePanel extends JPanel {
 
@@ -72,7 +73,7 @@ public class LocalFilePanel extends JPanel {
 	private final Border inactiveBorder;
 	private final Border activeBorder;
 	private final FileNameHighlighter fileNameHighlighter;
-	private final LocalFilePanelProvider provider;
+	private final LocalFileSystemPlugin provider;
 	private final Runnable helpAction;
 	private final JLabel searchLabel;
 	private final LocalFileDeletionService deletionService;
@@ -91,7 +92,7 @@ public class LocalFilePanel extends JPanel {
 	private boolean altSearchActive;
 	private int rightDragAnchorRow = -1;
 
-	public LocalFilePanel(LocalFilePanelProvider provider, Runnable helpAction) {
+	public LocalFilePanel(LocalFileSystemPlugin provider, Runnable helpAction) {
 		model = new LocalFilePanelModel();
 		table = new JTable(model);
 		statusLabel = new JLabel(" ");
@@ -433,14 +434,14 @@ public class LocalFilePanel extends JPanel {
 		}
 	}
 
-	public PluginPathResource getSelectedResource() {
-		List<PluginPathResource> selected = getSelectedResources();
+	public NuclrResourcePath getSelectedResource() {
+		List<NuclrResourcePath> selected = getSelectedResources();
 		return selected.isEmpty() ? null : selected.get(0);
 	}
 
-	public List<PluginPathResource> getSelectedResources() {
+	public List<NuclrResourcePath> getSelectedResources() {
 		int[] selectedRows = table.getSelectedRows();
-		List<PluginPathResource> resources = new ArrayList<>();
+		List<NuclrResourcePath> resources = new ArrayList<>();
 		for (int selectedRow : selectedRows) {
 			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(selectedRow));
 			if (!entry.parent()) {
@@ -553,8 +554,8 @@ public class LocalFilePanel extends JPanel {
 		return new DirectoryReadResult(entries, null);
 	}
 
-	private PluginPathResource toResource(LocalFilePanelModel.Entry entry) {
-		PluginPathResource resource = new PluginPathResource();
+	private NuclrResourcePath toResource(LocalFilePanelModel.Entry entry) {
+		NuclrResourcePath resource = new NuclrResourcePath();
 		resource.setPath(entry.path());
 		resource.setName(entry.name());
 		resource.setSizeBytes(entry.sizeBytes());

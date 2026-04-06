@@ -13,40 +13,87 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JComponent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import dev.nuclr.plugin.MenuResource;
-import dev.nuclr.plugin.PluginManifest;
-import dev.nuclr.plugin.PluginPathResource;
-import dev.nuclr.plugin.ResourceContentPlugin;
+import dev.nuclr.platform.ThemeScheme;
 import dev.nuclr.platform.events.NuclrEventListener;
 import dev.nuclr.platform.plugin.NuclrPluginContext;
+import dev.nuclr.plugin.NuclrMenuResource;
+import dev.nuclr.plugin.NuclrPlugin;
+import dev.nuclr.plugin.NuclrResourcePath;
+import dev.nuclr.plugin.core.panel.fs.plugin.LocalFilePanel;
+import dev.nuclr.plugin.core.panel.fs.plugin.LocalMenuActionEvent;
+import dev.nuclr.plugin.core.panel.fs.plugin.LocalMenuResource;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEventListener {
+public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 	private static final String MENU_ACTION_EVENT_TYPE = "dev.nuclr.plugin.core.panel.fs.menuAction";
 	private static final String THEME_UPDATED_EVENT_TYPE = "dev.nuclr.platform.theme.updated";
 	private static final String OPEN_RESOURCE_EVENT_TYPE = "dev.nuclr.platform.resource.open";
 	private static final String COPY_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.copy";
 	private static final String MOVE_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.move";
+	private static final String PLUGIN_ID = "dev.nuclr.plugin.core.panel.fs";
+	private static final String PLUGIN_NAME = "Local Filesystem Panel";
+	private static final int PLUGIN_VERSION = 100;
+	private static final String PLUGIN_DESCRIPTION = "Provides local filesystem roots (drives/mount points) to the file panel.";
+	private static final String PLUGIN_AUTHOR = "Nuclr Development Team";
+	private static final String PLUGIN_LICENSE = "Apache-2.0";
+	private static final String PLUGIN_WEBSITE = "https://nuclr.dev";
+	private static final String PLUGIN_PAGE_URL = "https://nuclr.dev/plugins/core/filepanel-fs.html";
+	private static final String PLUGIN_DOC_URL = PLUGIN_PAGE_URL;
 
 	private NuclrPluginContext context;
 	private LocalFilePanel panel;
 	private boolean focused;
 
 	@Override
-	public PluginManifest manifest() {
-		ObjectMapper objectMapper = context != null ? context.getObjectMapper() : new ObjectMapper();
-		try (var is = getClass().getResourceAsStream("/plugin.json")) {
-			if (is != null) {
-				return objectMapper.readValue(is, PluginManifest.class);
-			}
-		} catch (Exception e) {
-			log.error("Error reading /plugin.json for LocalFilePanelProvider", e);
-		}
-		return null;
+	public String id() {
+		return PLUGIN_ID;
+	}
+
+	@Override
+	public String name() {
+		return PLUGIN_NAME;
+	}
+
+	@Override
+	public int version() {
+		return PLUGIN_VERSION;
+	}
+
+	@Override
+	public String description() {
+		return PLUGIN_DESCRIPTION;
+	}
+
+	@Override
+	public String author() {
+		return PLUGIN_AUTHOR;
+	}
+
+	@Override
+	public String license() {
+		return PLUGIN_LICENSE;
+	}
+
+	@Override
+	public String website() {
+		return PLUGIN_WEBSITE;
+	}
+
+	@Override
+	public String pageUrl() {
+		return PLUGIN_PAGE_URL;
+	}
+
+	@Override
+	public String docUrl() {
+		return PLUGIN_DOC_URL;
+	}
+
+	@Override
+	public Developer type() {
+		return Developer.Official;
 	}
 
 	@Override
@@ -58,8 +105,8 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 	}
 
 	@Override
-	public List<MenuResource> menuItems(PluginPathResource source) {
-		List<MenuResource> items = new ArrayList<>();
+	public List<NuclrMenuResource> menuItems(NuclrResourcePath source) {
+		List<NuclrMenuResource> items = new ArrayList<>();
 		boolean isDirectory = source != null && source.getPath() != null && Files.isDirectory(source.getPath());
 		addDefaultMenuItems(items, source, isDirectory);
 		addAltMenuItems(items, source);
@@ -84,10 +131,10 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 	}
 
 	@Override
-	public List<PluginPathResource> getChangeDriveResources() {
-		var resources = new ArrayList<PluginPathResource>();
+	public List<NuclrResourcePath> getChangeDriveResources() {
+		var resources = new ArrayList<NuclrResourcePath>();
 		FileSystems.getDefault().getRootDirectories().forEach(p -> {
-			var res = new PluginPathResource();
+			var res = new NuclrResourcePath();
 			res.setPath(p);
 			res.setName(p.toString());
 			resources.add(res);
@@ -96,7 +143,7 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 	}
 
 	@Override
-	public boolean openResource(PluginPathResource resource, AtomicBoolean cancelled) {
+	public boolean openResource(NuclrResourcePath resource, AtomicBoolean cancelled) {
 		if (cancelled != null && cancelled.get()) {
 			return false;
 		}
@@ -116,13 +163,13 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		if (context == null || path == null) {
 			return false;
 		}
-		PluginPathResource resource = new PluginPathResource();
+		NuclrResourcePath resource = new NuclrResourcePath();
 		resource.setPath(path);
 		resource.setName(path.getFileName() != null ? path.getFileName().toString() : path.toString());
 		Map<String, Object> event = new HashMap<>();
 		event.put("sourceProvider", this);
 		event.put("resource", resource);
-		context.getEventBus().emit(OPEN_RESOURCE_EVENT_TYPE, event);
+		context.getEventBus().emit(this.id(), OPEN_RESOURCE_EVENT_TYPE, event);
 		return false;
 	}
 
@@ -132,7 +179,7 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 	}
 
 	@Override
-	public void handleMessage(String type, Map<String, Object> event) {
+	public void handleMessage(String source, String type, Map<String, Object> event) {
 		if (THEME_UPDATED_EVENT_TYPE.equals(type) && panel != null) {
 			panel.repaint();
 			return;
@@ -161,14 +208,14 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 			Map<String, Object> payload = new HashMap<>();
 			payload.put("sourceProvider", this);
 			payload.put("resources", ((LocalFilePanel) panel()).getSelectedResources());
-			context.getEventBus().emit(COPY_RESOURCES_EVENT_TYPE, payload);
+			context.getEventBus().emit(this.id(), COPY_RESOURCES_EVENT_TYPE, payload);
 			return;
 		}
 		if ("move".equals(actionEvent.getActionId())) {
 			Map<String, Object> payload = new HashMap<>();
 			payload.put("sourceProvider", this);
 			payload.put("resources", ((LocalFilePanel) panel()).getSelectedResources());
-			context.getEventBus().emit(MOVE_RESOURCES_EVENT_TYPE, payload);
+			context.getEventBus().emit(this.id(), MOVE_RESOURCES_EVENT_TYPE, payload);
 			return;
 		}
 		if ("sortByName".equals(actionEvent.getActionId())) {
@@ -208,18 +255,14 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		}
 	}
 
-	private static MenuResource menu(String name, String keyStroke, String actionId, PluginPathResource source) {
+	private static NuclrMenuResource menu(String name, String keyStroke, String actionId, NuclrResourcePath source) {
 		return new LocalMenuResource(name, keyStroke, MENU_ACTION_EVENT_TYPE);
 	}
 
-	private void openDocumentation() {
-		PluginManifest pluginInfo = manifest();
-		if (pluginInfo == null) {
-			return;
-		}
-		String docUrl = pluginInfo.getDocUrl();
+	public void openDocumentation() {
+		String docUrl = docUrl();
 		if (docUrl == null || docUrl.isBlank()) {
-			log.warn("No documentation URL configured for {}", pluginInfo.getId());
+			log.warn("No documentation URL configured for {}", id());
 			return;
 		}
 		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
@@ -239,7 +282,7 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		}
 		Object label = event.get("label");
 		Object resource = event.get("resource");
-		PluginPathResource source = resource instanceof PluginPathResource pathResource ? pathResource : null;
+		NuclrResourcePath source = resource instanceof NuclrResourcePath pathResource ? pathResource : null;
 		String actionId = actionIdFromLabel(label instanceof String text ? text : null);
 		return actionId != null ? new LocalMenuActionEvent(actionId, source) : null;
 	}
@@ -287,7 +330,8 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		};
 	}
 
-	private static void addDefaultMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+	private static void addDefaultMenuItems(List<NuclrMenuResource> items, NuclrResourcePath source,
+			boolean isDirectory) {
 		items.add(menu("Help", "F1", "help", source));
 		items.add(menu("User Menu", "F2", "userMenu", source));
 		items.add(menu("View", "F3", "view", source));
@@ -301,7 +345,7 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		items.add(menu("Screen", "F12", "screen", source));
 	}
 
-	private static void addAltMenuItems(List<MenuResource> items, PluginPathResource source) {
+	private static void addAltMenuItems(List<NuclrMenuResource> items, NuclrResourcePath source) {
 		items.add(menu("Left", "Alt+F1", "left", source));
 		items.add(menu("Right", "Alt+F2", "right", source));
 		items.add(menu("Find", "Alt+F7", "find", source));
@@ -312,7 +356,7 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		items.add(menu("Folder History", "Alt+F12", "folderHistory", source));
 	}
 
-	private static void addCtrlMenuItems(List<MenuResource> items, PluginPathResource source) {
+	private static void addCtrlMenuItems(List<NuclrMenuResource> items, NuclrResourcePath source) {
 		items.add(menu("Hide Left", "Ctrl+F1", "hideLeft", source));
 		items.add(menu("Hide Right", "Ctrl+F2", "hideRight", source));
 		items.add(menu("Sort by name", "Ctrl+F3", "sortByName", source));
@@ -325,7 +369,8 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 		items.add(menu("Sort menu", "Ctrl+F12", "sortMenu", source));
 	}
 
-	private static void addShiftMenuItems(List<MenuResource> items, PluginPathResource source, boolean isDirectory) {
+	private static void addShiftMenuItems(List<NuclrMenuResource> items, NuclrResourcePath source,
+			boolean isDirectory) {
 		items.add(menu("Create archive", "Shift+F1", "createArchive", source));
 		items.add(menu("Extract archive", "Shift+F2", "extractArchive", source));
 		items.add(menu("Create file", "Shift+F4", "createFile", source));
@@ -335,12 +380,20 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 
 	@Override
 	public void closeResource() {
-		// The local filesystem panel keeps state in its Swing component and does not require explicit teardown here.
+		// The local filesystem panel keeps state in its Swing component and does not
+		// require explicit teardown here.
 	}
 
 	@Override
 	public int priority() {
 		return 0;
+	}
+
+	@Override
+	public void updateTheme(ThemeScheme themeScheme) {
+		if (panel != null) {
+			panel.repaint();
+		}
 	}
 
 	public void onFocusGained() {
@@ -356,7 +409,13 @@ public class LocalFilePanelProvider implements ResourceContentPlugin, NuclrEvent
 	}
 
 	@Override
-	public boolean supports(PluginPathResource resource) {
+	public boolean supports(NuclrResourcePath resource) {
 		return resource != null && resource.getPath() != null && Files.isDirectory(resource.getPath());
 	}
+
+	@Override
+	public boolean singleton() {
+		return false;
+	}
+
 }

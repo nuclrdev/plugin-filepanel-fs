@@ -1,4 +1,4 @@
-package dev.nuclr.plugin.core.panel.fs;
+package dev.nuclr.plugin.core.panel.fs.plugin;
 
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;

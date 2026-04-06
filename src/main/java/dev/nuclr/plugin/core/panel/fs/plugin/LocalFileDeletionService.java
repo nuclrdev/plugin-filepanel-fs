@@ -1,4 +1,4 @@
-package dev.nuclr.plugin.core.panel.fs;
+package dev.nuclr.plugin.core.panel.fs.plugin;
 
 import java.awt.Component;
 import java.awt.Desktop;

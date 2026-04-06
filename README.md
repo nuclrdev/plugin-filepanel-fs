@@ -10,7 +10,7 @@ Official Nuclr core plugin that provides local filesystem roots (drives/mount po
 - Provider class: `dev.nuclr.plugin.core.panel.fs.LocalFilePanelProvider`
 - License: Apache-2.0
 
-This plugin registers a `FilePanelProvider` that exposes one root per entry returned by `FileSystems.getDefault().getRootDirectories()`:
+This plugin registers a `NuclrPlugin` that exposes one root per entry returned by `FileSystems.getDefault().getRootDirectories()`:
 
 - Windows: typically `C:\`, `D:\`, etc.
 - Linux/macOS: typically `/`
@@ -27,7 +27,7 @@ This plugin registers a `FilePanelProvider` that exposes one root per entry retu
 - Java 21
 - Maven 3.9+ (recommended)
 - Nuclr platform SDK dependency:
-  - `dev.nuclr:platform-sdk:2.0.1`
+  - `dev.nuclr:platform-sdk:2.0.3`
 
 ## Build
 
@@ -53,7 +53,6 @@ After build/verify, artifacts are placed in `target/`:
 
 Plugin ZIP contents:
 
-- `plugin.json`
 - `filepanel-fs-1.0.0.jar`
 - `lib/` runtime dependencies
 
@@ -67,7 +66,6 @@ Plugin ZIP contents:
 
 ```text
 src/main/java/dev/nuclr/plugin/core/panel/fs/LocalFilePanelProvider.java
-src/main/resources/plugin.json
 src/assembly/plugin.xml
 pom.xml
 ```

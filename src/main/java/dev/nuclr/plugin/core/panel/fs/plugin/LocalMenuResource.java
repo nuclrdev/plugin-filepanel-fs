@@ -1,8 +1,8 @@
-package dev.nuclr.plugin.core.panel.fs;
+package dev.nuclr.plugin.core.panel.fs.plugin;
 
-import dev.nuclr.plugin.MenuResource;
+import dev.nuclr.plugin.NuclrMenuResource;
 
-public final class LocalMenuResource extends MenuResource {
+public final class LocalMenuResource extends NuclrMenuResource {
 
 	private final String eventType;
 
