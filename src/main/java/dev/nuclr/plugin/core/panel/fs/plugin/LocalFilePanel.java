@@ -33,6 +33,7 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -95,6 +96,16 @@ public class LocalFilePanel extends JPanel {
 	public LocalFilePanel(LocalFileSystemPlugin provider, Runnable helpAction) {
 		model = new LocalFilePanelModel();
 		table = new JTable(model);
+		table.setFocusTraversalKeysEnabled(false);
+		
+		// Remove the "selectNextColumnCell" action tied to the TAB key
+		table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+		     .put(KeyStroke.getKeyStroke("TAB"), "none");
+
+		// Remove the "selectPreviousColumnCell" action tied to SHIFT-TAB
+		table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+		     .put(KeyStroke.getKeyStroke("shift TAB"), "none");
+		
 		statusLabel = new JLabel(" ");
 		pathLabel = new JLabel(" ");
 		searchLabel = new JLabel();
