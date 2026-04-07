@@ -396,9 +396,11 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		}
 	}
 
-	public void onFocusGained() {
+	@Override
+	public boolean onFocusGained() {
 		focused = true;
 		((LocalFilePanel) panel()).setPluginFocused(true);
+		return true;
 	}
 
 	public void onFocusLost() {
