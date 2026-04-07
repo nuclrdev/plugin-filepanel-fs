@@ -55,7 +55,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import dev.nuclr.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
+import lombok.Data;
 
+@Data
 public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
@@ -375,7 +377,7 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	public void setPluginFocused(boolean focused) {
-		setBorder(focused ? activeBorder : inactiveBorder);
+//		setBorder(focused ? activeBorder : inactiveBorder);
 		if (focused) {
 			focusTable();
 		}

@@ -44,7 +44,6 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 	private NuclrPluginContext context;
 	private LocalFilePanel panel;
-	private boolean focused;
 
 	@Override
 	public String id() {
@@ -184,7 +183,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			panel.repaint();
 			return;
 		}
-		if (!MENU_ACTION_EVENT_TYPE.equals(type) || !focused) {
+		if (!MENU_ACTION_EVENT_TYPE.equals(type) || !isFocused()) {
 			return;
 		}
 		LocalMenuActionEvent actionEvent = toMenuActionEvent(event);
@@ -398,13 +397,12 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 	@Override
 	public boolean onFocusGained() {
-		focused = true;
 		((LocalFilePanel) panel()).setPluginFocused(true);
 		return true;
 	}
 
+	@Override
 	public void onFocusLost() {
-		focused = false;
 		if (panel != null) {
 			panel.setPluginFocused(false);
 		}
@@ -418,6 +416,11 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	@Override
 	public boolean singleton() {
 		return false;
+	}
+
+	@Override
+	public boolean isFocused() {
+		return this.panel.isFocusOwner() || this.panel.getTable().isFocusOwner();
 	}
 
 }
