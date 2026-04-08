@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -53,6 +54,7 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
+import dev.nuclr.platform.events.NuclrEventBus;
 import dev.nuclr.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
 import lombok.Data;
@@ -69,6 +71,7 @@ public class LocalFilePanel extends JPanel {
 	private static final Set<String> WINDOWS_EXECUTABLE_EXTENSIONS = Set.of(
 			"exe", "com", "bat", "cmd");
 
+	private NuclrEventBus eventBus;
 	private final JTable table;
 	private final JLabel statusLabel;
 	private final JLabel pathLabel;
@@ -285,6 +288,13 @@ public class LocalFilePanel extends JPanel {
 		table.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) {
 				updateStatus();
+				if (eventBus != null) {
+					Path selectedPath = getSelectedEntryPath();
+					if (selectedPath != null) {
+						eventBus.emit(LocalFileSystemPlugin.PLUGIN_ID, "fs.path.selected",
+								Map.of("path", selectedPath));
+					}
+				}				
 			}
 		});
 		table.addMouseListener(new MouseAdapter() {
