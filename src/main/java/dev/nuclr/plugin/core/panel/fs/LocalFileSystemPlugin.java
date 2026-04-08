@@ -32,7 +32,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	private static final String OPEN_RESOURCE_EVENT_TYPE = "dev.nuclr.platform.resource.open";
 	private static final String COPY_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.copy";
 	private static final String MOVE_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.move";
-	private static final String PLUGIN_ID = "dev.nuclr.plugin.core.panel.fs";
+	public static final String PLUGIN_ID = "dev.nuclr.plugin.core.panel.fs";
 	private static final String PLUGIN_NAME = "Local Filesystem Panel";
 	private static final int PLUGIN_VERSION = 100;
 	private static final String PLUGIN_DESCRIPTION = "Provides local filesystem roots (drives/mount points) to the file panel.";
@@ -99,6 +99,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	public JComponent panel() {
 		if (panel == null) {
 			panel = new LocalFilePanel(this, this::openDocumentation);
+			panel.setEventBus(this.context.getEventBus());
 		}
 		return panel;
 	}
