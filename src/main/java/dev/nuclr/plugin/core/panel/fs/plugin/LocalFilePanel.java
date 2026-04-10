@@ -213,6 +213,16 @@ public class LocalFilePanel extends JPanel {
 				moveSelectionByPage(1);
 			}
 		});
+
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F5"), "copyFiles");
+		table.getActionMap().put("copyFiles", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				eventBus.emit(LocalFilePanel.this, "fs.copy", Map.of("paths", getSelectedResources()));
+			}
+		});
+
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
 				.put(KeyStroke.getKeyStroke("F7"), "createNewFolder");
 		table.getActionMap().put("createNewFolder", new AbstractAction() {
