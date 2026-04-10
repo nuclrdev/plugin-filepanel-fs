@@ -42,6 +42,8 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	private static final String PLUGIN_PAGE_URL = "https://nuclr.dev/plugins/core/filepanel-fs.html";
 	private static final String PLUGIN_DOC_URL = PLUGIN_PAGE_URL;
 
+	private final CopyService copyService = new CopyService();
+
 	private NuclrPluginContext context;
 	private LocalFilePanel panel;
 
@@ -177,7 +179,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 	@Override
 	public boolean isMessageSupported(String type) {
-		return THEME_UPDATED_EVENT_TYPE.equals(type) || MENU_ACTION_EVENT_TYPE.equals(type);
+		return true;
 	}
 
 	@Override
@@ -192,7 +194,9 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 		if ("fs.copy".equals(type)) {
 			if (panel != null) {
-				new CopyService().copy((List<NuclrResourcePath>) event.get("paths"), panel.getCurrentDirectory());
+				@SuppressWarnings("unchecked")
+				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
+				copyService.copy(panel, paths, panel.getCurrentDirectory());
 			}
 			return;
 		}
