@@ -55,7 +55,7 @@ import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
 import dev.nuclr.platform.events.NuclrEventBus;
-import dev.nuclr.plugin.NuclrResourcePath;
+import dev.nuclr.platform.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
 import lombok.Data;
 

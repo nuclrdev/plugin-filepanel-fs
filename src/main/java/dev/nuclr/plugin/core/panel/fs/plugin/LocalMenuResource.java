@@ -1,6 +1,6 @@
 package dev.nuclr.plugin.core.panel.fs.plugin;
 
-import dev.nuclr.plugin.NuclrMenuResource;
+import dev.nuclr.platform.plugin.NuclrMenuResource;
 
 public final class LocalMenuResource extends NuclrMenuResource {
 

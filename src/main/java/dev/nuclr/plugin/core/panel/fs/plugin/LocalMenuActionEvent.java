@@ -1,6 +1,6 @@
 package dev.nuclr.plugin.core.panel.fs.plugin;
 
-import dev.nuclr.plugin.NuclrResourcePath;
+import dev.nuclr.platform.plugin.NuclrResourcePath;
 
 public final class LocalMenuActionEvent {
 

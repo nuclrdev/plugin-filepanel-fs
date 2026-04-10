@@ -13,12 +13,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JComponent;
 
-import dev.nuclr.platform.ThemeScheme;
+import dev.nuclr.platform.NuclrThemeScheme;
 import dev.nuclr.platform.events.NuclrEventListener;
+import dev.nuclr.platform.plugin.NuclrMenuResource;
+import dev.nuclr.platform.plugin.NuclrPlugin;
 import dev.nuclr.platform.plugin.NuclrPluginContext;
-import dev.nuclr.plugin.NuclrMenuResource;
-import dev.nuclr.plugin.NuclrPlugin;
-import dev.nuclr.plugin.NuclrResourcePath;
+import dev.nuclr.platform.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.plugin.LocalFilePanel;
 import dev.nuclr.plugin.core.panel.fs.plugin.LocalMenuActionEvent;
 import dev.nuclr.plugin.core.panel.fs.plugin.LocalMenuResource;
@@ -34,7 +34,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	private static final String MOVE_RESOURCES_EVENT_TYPE = "dev.nuclr.platform.resources.move";
 	public static final String PLUGIN_ID = "dev.nuclr.plugin.core.panel.fs";
 	private static final String PLUGIN_NAME = "Local Filesystem Panel";
-	private static final int PLUGIN_VERSION = 100;
+	private static final String PLUGIN_VERSION = "1.0.0";
 	private static final String PLUGIN_DESCRIPTION = "Provides local filesystem roots (drives/mount points) to the file panel.";
 	private static final String PLUGIN_AUTHOR = "Nuclr Development Team";
 	private static final String PLUGIN_LICENSE = "Apache-2.0";
@@ -56,7 +56,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	}
 
 	@Override
-	public int version() {
+	public String version() {
 		return PLUGIN_VERSION;
 	}
 
@@ -390,7 +390,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	}
 
 	@Override
-	public void updateTheme(ThemeScheme themeScheme) {
+	public void updateTheme(NuclrThemeScheme themeScheme) {
 		if (panel != null) {
 			panel.repaint();
 		}
