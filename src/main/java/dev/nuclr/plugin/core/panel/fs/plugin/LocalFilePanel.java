@@ -552,19 +552,7 @@ public class LocalFilePanel extends JPanel {
 			showError("Delete", "No files or folders selected.");
 			return;
 		}
-		try {
-			if (deletionService.delete(this, selectedEntries, permanent)) {
-				showDirectory(currentDirectory);
-			}
-		} catch (AccessDeniedException ex) {
-			showError("Delete", "Access denied while deleting " + ex.getFile() + ".");
-		} catch (ReadOnlyFileSystemException ex) {
-			showError("Delete", "The current filesystem is read-only.");
-		} catch (SecurityException ex) {
-			showError("Delete", "Security policy denied deletion.");
-		} catch (IOException ex) {
-			showError("Delete", "Cannot delete selection: " + ex.getMessage());
-		}
+		deletionService.delete(this, selectedEntries, permanent, () -> showDirectory(currentDirectory));
 	}
 
 	private DirectoryReadResult readEntries(Path directory) {
