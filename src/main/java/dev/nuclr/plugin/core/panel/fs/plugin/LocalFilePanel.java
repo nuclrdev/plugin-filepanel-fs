@@ -1349,6 +1349,7 @@ public class LocalFilePanel extends JPanel {
 			return displayName;
 		}
 	}
+
 }
 
 

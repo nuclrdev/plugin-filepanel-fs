@@ -116,9 +116,11 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	}
 
 	@Override
-	public void load(NuclrPluginContext context) {
+	public void load(NuclrPluginContext context, boolean template) {
 		this.context = context;
-		context.getEventBus().subscribe(this);
+		if (false == template) {
+			context.getEventBus().subscribe(this);
+		}
 		log.info("Local filesystem panel plugin loaded");
 	}
 
@@ -179,7 +181,22 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	}
 
 	@Override
-	public void handleMessage(String source, String type, Map<String, Object> event) {
+	public void handleMessage(Object source, String type, Map<String, Object> event) {
+		
+		// Ignore its own events
+		if (source == this || source == panel) {
+			return;
+		}
+		
+		log.info("Received message - Source: {}, Type: {}, Event: {}", source, type, event);
+
+		if ("fs.copy".equals(type)) {
+			if (panel != null) {
+				new CopyService().copy((List<NuclrResourcePath>) event.get("paths"), panel.getCurrentDirectory());
+			}
+			return;
+		}
+		
 		if (THEME_UPDATED_EVENT_TYPE.equals(type) && panel != null) {
 			panel.repaint();
 			return;
