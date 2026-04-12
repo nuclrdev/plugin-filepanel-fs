@@ -764,18 +764,50 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private void updateStatus() {
-		int row = table.getSelectedRow();
-		if (row < 0) {
+		int[] selectedRows = table.getSelectedRows();
+		if (selectedRows.length == 0) {
 			statusLabel.setText(currentDirectory == null ? " " : currentDirectory.toString());
 			return;
 		}
-		LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
-		if (entry.parent()) {
+
+		List<LocalFilePanelModel.Entry> selected = new ArrayList<>();
+		boolean parentSelected = false;
+		for (int row : selectedRows) {
+			LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
+			if (entry.parent()) {
+				parentSelected = true;
+			} else {
+				selected.add(entry);
+			}
+		}
+
+		if (selected.isEmpty()) {
 			statusLabel.setText("Go to parent directory");
 			return;
 		}
-		String type = entry.link() ? "Link" : (entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes()));
-		statusLabel.setText(entry.name() + "  |  " + type);
+
+		if (selected.size() == 1 && !parentSelected) {
+			LocalFilePanelModel.Entry entry = selected.get(0);
+			String type = entry.link() ? "Link" : (entry.directory() ? "Folder" : humanReadableSize(entry.sizeBytes()));
+			statusLabel.setText(entry.name() + "  |  " + type);
+			return;
+		}
+
+		long totalBytes = 0;
+		int fileCount = 0;
+		int folderCount = 0;
+		for (LocalFilePanelModel.Entry entry : selected) {
+			if (entry.directory()) {
+				folderCount++;
+			} else {
+				fileCount++;
+				totalBytes += entry.sizeBytes();
+			}
+		}
+		statusLabel.setText(
+				"Bytes: " + humanReadableSize(totalBytes)
+				+ ",  files: " + fileCount
+				+ ",  folders: " + folderCount);
 	}
 
 	private boolean selectPath(Path selectedPath) {
