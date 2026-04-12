@@ -206,7 +206,8 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			if (panel != null) {
 				@SuppressWarnings("unchecked")
 				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
-				copyService.copy(panel, paths, panel.getCurrentDirectory());
+				Runnable refreshSource = buildSourceRefresh(source);
+				moveService.move(panel, paths, panel.getCurrentDirectory(), refreshSource);
 			}
 			return;
 		}
@@ -453,6 +454,26 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	@Override
 	public boolean isFocused() {
 		return this.panel.isFocusOwner() || this.panel.getTable().isFocusOwner();
+	}
+
+	/**
+	 * Build a runnable that refreshes the source panel after a move completes.
+	 *
+	 * <p>The {@code source} argument of {@code handleMessage} is the
+	 * {@link LocalFilePanel} that emitted the {@code fs.move} event, so we can
+	 * call {@code showDirectory} on it directly to update its listing.
+	 *
+	 * @return a refresh runnable, or {@code null} if the source is not a local panel
+	 */
+	private static Runnable buildSourceRefresh(Object source) {
+		if (!(source instanceof LocalFilePanel sourcePanel)) {
+			return null;
+		}
+		Path sourceDir = sourcePanel.getCurrentDirectory();
+		if (sourceDir == null) {
+			return null;
+		}
+		return () -> sourcePanel.showDirectory(sourceDir);
 	}
 
 }
