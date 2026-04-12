@@ -43,6 +43,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	private static final String PLUGIN_DOC_URL = PLUGIN_PAGE_URL;
 
 	private final CopyService copyService = new CopyService();
+	private final MoveService moveService = new MoveService();
 
 	private NuclrPluginContext context;
 	private LocalFilePanel panel;
@@ -200,7 +201,16 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			}
 			return;
 		}
-		
+
+		if ("fs.move".equals(type)) {
+			if (panel != null) {
+				@SuppressWarnings("unchecked")
+				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
+				copyService.copy(panel, paths, panel.getCurrentDirectory());
+			}
+			return;
+		}
+
 		if (THEME_UPDATED_EVENT_TYPE.equals(type) && panel != null) {
 			panel.repaint();
 			return;
