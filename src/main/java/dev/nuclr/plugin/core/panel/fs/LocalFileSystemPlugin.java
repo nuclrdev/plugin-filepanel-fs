@@ -18,6 +18,7 @@ import dev.nuclr.platform.events.NuclrEventListener;
 import dev.nuclr.platform.plugin.NuclrMenuResource;
 import dev.nuclr.platform.plugin.NuclrPlugin;
 import dev.nuclr.platform.plugin.NuclrPluginContext;
+import dev.nuclr.platform.plugin.NuclrPluginRole;
 import dev.nuclr.platform.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.plugin.LocalFilePanel;
 import dev.nuclr.plugin.core.panel.fs.plugin.LocalMenuActionEvent;
@@ -474,6 +475,11 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			return null;
 		}
 		return () -> sourcePanel.showDirectory(sourceDir);
+	}
+
+	@Override
+	public NuclrPluginRole role() {
+		return NuclrPluginRole.FilePanel;
 	}
 
 }
