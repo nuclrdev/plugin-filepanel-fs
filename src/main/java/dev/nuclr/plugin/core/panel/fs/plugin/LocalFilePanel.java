@@ -653,7 +653,7 @@ public class LocalFilePanel extends JPanel {
 		}
 		if (entry.link()) {
 			Path resolvedPath = resolveLinkedPath(entry.path());
-			if (resolvedPath != null && Files.isDirectory(resolvedPath)) {
+				if (resolvedPath != null && Files.isDirectory(resolvedPath)) {
 				showDirectory(resolvedPath);
 				selectFirstRowAndScrollToTop();
 				return;
@@ -676,6 +676,11 @@ public class LocalFilePanel extends JPanel {
 			}
 			return;
 		}
+		
+		// Find any plugins
+		
+		
+		
 		if (provider != null && provider.requestOpen(entry.path())) {
 			return;
 		}
@@ -1086,18 +1091,7 @@ public class LocalFilePanel extends JPanel {
 	}
 
 	private void openPathWithDefaultApplication(Path path) {
-		if (path == null || !Files.exists(path)) {
-			return;
-		}
-		if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-			showError("Error", "Opening items with the system default application is not supported on this platform.");
-			return;
-		}
-		try {
-			Desktop.getDesktop().open(path.toFile());
-		} catch (Exception ex) {
-			showError("Error", "Cannot open item: " + ex.getMessage());
-		}
+		eventBus.emit(this, "fs.path.opened", Map.of("path", path));
 	}
 
 	private void revealCurrentDirectoryInSystemExplorer() {
