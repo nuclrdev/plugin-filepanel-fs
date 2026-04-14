@@ -28,6 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
+	private String uuid = java.util.UUID.randomUUID().toString();
+	
 	private static final String MENU_ACTION_EVENT_TYPE = "dev.nuclr.plugin.core.panel.fs.menuAction";
 	private static final String THEME_UPDATED_EVENT_TYPE = "dev.nuclr.platform.theme.updated";
 	private static final String OPEN_RESOURCE_EVENT_TYPE = "dev.nuclr.platform.resource.open";
@@ -186,12 +188,12 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 
 	@Override
 	public void handleMessage(Object source, String type, Map<String, Object> event) {
-		
+
 		// Ignore its own events
 		if (source == this || source == panel) {
 			return;
 		}
-		
+
 		log.info("Received message - Source: {}, Type: {}, Event: {}", source, type, event);
 
 		if ("fs.copy".equals(type)) {
@@ -460,11 +462,13 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	/**
 	 * Build a runnable that refreshes the source panel after a move completes.
 	 *
-	 * <p>The {@code source} argument of {@code handleMessage} is the
-	 * {@link LocalFilePanel} that emitted the {@code fs.move} event, so we can
-	 * call {@code showDirectory} on it directly to update its listing.
+	 * <p>
+	 * The {@code source} argument of {@code handleMessage} is the
+	 * {@link LocalFilePanel} that emitted the {@code fs.move} event, so we can call
+	 * {@code showDirectory} on it directly to update its listing.
 	 *
-	 * @return a refresh runnable, or {@code null} if the source is not a local panel
+	 * @return a refresh runnable, or {@code null} if the source is not a local
+	 *         panel
 	 */
 	private static Runnable buildSourceRefresh(Object source) {
 		if (!(source instanceof LocalFilePanel sourcePanel)) {
@@ -480,6 +484,16 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	@Override
 	public NuclrPluginRole role() {
 		return NuclrPluginRole.FilePanel;
+	}
+
+	@Override
+	public NuclrResourcePath getCurrentResource() {
+		return new NuclrResourcePath(this.panel.getCurrentDirectory());
+	}
+
+	@Override
+	public String uuid() {
+		return uuid;
 	}
 
 }
