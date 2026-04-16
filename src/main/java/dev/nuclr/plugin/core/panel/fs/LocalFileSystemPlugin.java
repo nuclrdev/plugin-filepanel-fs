@@ -226,7 +226,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		if (actionEvent == null) {
 			return;
 		}
-		if ("makeFolder".equals(actionEvent.getActionId())) {
+			if ("makeFolder".equals(actionEvent.getActionId())) {
 			Path sourcePath = actionEvent.getSource() != null ? actionEvent.getSource().getPath() : null;
 			((LocalFilePanel) panel()).createNewFolder(sourcePath);
 			return;
