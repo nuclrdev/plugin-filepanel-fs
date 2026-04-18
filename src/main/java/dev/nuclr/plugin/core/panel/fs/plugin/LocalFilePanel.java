@@ -1129,7 +1129,7 @@ public class LocalFilePanel extends JPanel {
 	private JPanel createLoadingOverlay() {
 		JPanel overlay = new JPanel();
 		overlay.setOpaque(true);
-		overlay.setBackground(new Color(0, 0, 0, 110));
+		overlay.setBackground(new Color(0, 0, 0, 0));
 		overlay.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
 		overlay.setLayout(new BoxLayout(overlay, BoxLayout.Y_AXIS));
 		overlay.setAlignmentX(0.5f);
