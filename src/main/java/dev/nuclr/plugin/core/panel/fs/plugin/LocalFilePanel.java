@@ -54,6 +54,7 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableCellRenderer;
 
+import dev.nuclr.platform.NuclrThemeScheme;
 import dev.nuclr.platform.events.NuclrEventBus;
 import dev.nuclr.platform.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
@@ -63,6 +64,7 @@ import lombok.Data;
 public class LocalFilePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
+	private static final String FILE_HILIGHT_PREFIX = "file-hilight-";
 	private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
 	private static final Set<String> WINDOWS_RESERVED_NAMES = Set.of(
 			"CON", "PRN", "AUX", "NUL",
@@ -78,7 +80,6 @@ public class LocalFilePanel extends JPanel {
 	private final LocalFilePanelModel model;
 	private final Border inactiveBorder;
 	private final Border activeBorder;
-	private final FileNameHighlighter fileNameHighlighter;
 	private final LocalFileSystemPlugin provider;
 	private final Runnable helpAction;
 	private final JLabel searchLabel;
@@ -97,6 +98,7 @@ public class LocalFilePanel extends JPanel {
 	private Popup searchPopup;
 	private boolean altSearchActive;
 	private int rightDragAnchorRow = -1;
+	private NuclrThemeScheme themeScheme;
 
 	public LocalFilePanel(LocalFileSystemPlugin provider, Runnable helpAction) {
 		model = new LocalFilePanelModel();
@@ -132,8 +134,6 @@ public class LocalFilePanel extends JPanel {
 										? UIManager.getColor("Component.focusColor")
 										: java.awt.Color.GRAY),
 				BorderFactory.createEmptyBorder(3, 3, 3, 3));
-		fileNameHighlighter = new FileNameHighlighter(table.getForeground());
-
 		setLayout(new BorderLayout(0, 4));
 		setBorder(inactiveBorder);
 		centerPanel.setLayout(new OverlayLayout(centerPanel));
@@ -388,6 +388,49 @@ public class LocalFilePanel extends JPanel {
 		add(pathLabel, BorderLayout.NORTH);
 		add(centerPanel, BorderLayout.CENTER);
 		add(statusLabel, BorderLayout.SOUTH);
+	}
+
+	public void setThemeScheme(NuclrThemeScheme themeScheme) {
+		this.themeScheme = themeScheme;
+	}
+
+	private Color colorFor(LocalFilePanelModel.Entry entry) {
+		Color defaultColor = table.getForeground();
+		if (entry.parent() || entry.directory()) {
+			return defaultColor;
+		}
+		if (entry.hidden() || entry.system()) {
+			return themeScheme != null
+					? themeScheme.color(FILE_HILIGHT_PREFIX + "hidden", new Color(120, 120, 120))
+					: new Color(120, 120, 120);
+		}
+
+		String extension = extensionOf(entry.name());
+		Color fallback = entry.executable()
+				? themeScheme != null
+						? themeScheme.color(FILE_HILIGHT_PREFIX + "executable", new Color(231, 92, 92))
+						: new Color(231, 92, 92)
+				: defaultColor;
+		return themeScheme != null ? themeScheme.color(fileHighlightKey(extension), fallback) : fallback;
+	}
+
+	private static String fileHighlightKey(String extension) {
+		if (extension == null) {
+			return FILE_HILIGHT_PREFIX;
+		}
+		String normalized = extension.trim().toLowerCase(Locale.ROOT);
+		if (normalized.startsWith(".")) {
+			normalized = normalized.substring(1);
+		}
+		return FILE_HILIGHT_PREFIX + normalized;
+	}
+
+	private static String extensionOf(String name) {
+		int dot = name.lastIndexOf('.');
+		if (dot < 0 || dot == name.length() - 1) {
+			return "";
+		}
+		return name.substring(dot + 1).toLowerCase(Locale.ROOT);
 	}
 
 	@Override
@@ -1352,7 +1395,7 @@ public class LocalFilePanel extends JPanel {
 			if (component instanceof JLabel label) {
 				label.setHorizontalAlignment(column == 1 ? SwingConstants.RIGHT : SwingConstants.LEFT);
 				if (!isSelected && column == 0 && panel != null) {
-					label.setForeground(panel.fileNameHighlighter.colorFor(entry));
+					label.setForeground(panel.colorFor(entry));
 				}
 			}
 			return component;

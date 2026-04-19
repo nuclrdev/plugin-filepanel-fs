@@ -106,6 +106,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		if (panel == null) {
 			panel = new LocalFilePanel(this, this::openDocumentation);
 			panel.setEventBus(this.context.getEventBus());
+			panel.setThemeScheme(this.context.getTheme());
 		}
 		return panel;
 	}
@@ -427,6 +428,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	@Override
 	public void updateTheme(NuclrThemeScheme themeScheme) {
 		if (panel != null) {
+			panel.setThemeScheme(themeScheme);
 			panel.repaint();
 		}
 	}
