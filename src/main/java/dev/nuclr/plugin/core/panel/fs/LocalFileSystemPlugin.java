@@ -198,7 +198,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		log.info("Received message - Source: {}, Type: {}, Event: {}", source, type, event);
 
 		if ("fs.copy".equals(type)) {
-			if (panel != null) {
+			if (panel != null && panel.isShowing()) {
 				@SuppressWarnings("unchecked")
 				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
 				copyService.copy(panel, paths, panel.getCurrentDirectory());
@@ -207,7 +207,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		}
 
 		if ("fs.move".equals(type)) {
-			if (panel != null) {
+			if (panel != null && panel.isShowing()) {
 				@SuppressWarnings("unchecked")
 				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
 				Runnable refreshSource = buildSourceRefresh(source);
