@@ -24,10 +24,12 @@ import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.swing.AbstractAction;
@@ -213,13 +215,36 @@ public class LocalFilePanel extends JPanel {
 				moveSelectionByPage(1);
 			}
 		});
+		
+		// View
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F3"), "viewFile");
+		table.getActionMap().put("viewFile", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+
+				if (getSelectedResource() != null) {
+					eventBus.emit(LocalFilePanel.this, "fs.view", Map.of("path", getSelectedResource()));
+				}
+
+			}
+		});
+		
 
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F5"), "copyFiles");
 		table.getActionMap().put("copyFiles", new AbstractAction() {
 			private static final long serialVersionUID = 1L;
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
-				eventBus.emit(LocalFilePanel.this, "fs.copy", Map.of("paths", getSelectedResources()));
+				List<NuclrResourcePath> resources = getSelectedResources();
+				AtomicBoolean accepted = new AtomicBoolean(false);
+				Map<String, Object> payload = new HashMap<>();
+				payload.put("paths", resources);
+				payload.put("accepted", accepted);
+				eventBus.emit(LocalFilePanel.this, "fs.copy", payload);
+				if (!accepted.get()) {
+					provider.copyIntoCurrentPanel(resources);
+				}
 			}
 		});
 

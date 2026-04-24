@@ -182,6 +182,29 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		return false;
 	}
 
+	public void copyIntoCurrentPanel(List<NuclrResourcePath> paths) {
+		if (panel != null && panel.isShowing()) {
+			copyService.copy(panel, paths, panel.getCurrentDirectory());
+		}
+	}
+
+	private void emitCopyOrCopyIntoCurrentPanel(List<NuclrResourcePath> paths) {
+		AtomicBoolean accepted = new AtomicBoolean(false);
+		Map<String, Object> payload = new HashMap<>();
+		payload.put("paths", paths);
+		payload.put("accepted", accepted);
+		context.getEventBus().emit(this, "fs.copy", payload);
+		if (!accepted.get()) {
+			copyIntoCurrentPanel(paths);
+		}
+	}
+
+	private static void markAccepted(Map<String, Object> event) {
+		if (event != null && event.get("accepted") instanceof AtomicBoolean accepted) {
+			accepted.set(true);
+		}
+	}
+
 	@Override
 	public boolean isMessageSupported(String type) {
 		return true;
@@ -201,7 +224,8 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			if (panel != null && panel.isShowing()) {
 				@SuppressWarnings("unchecked")
 				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
-				copyService.copy(panel, paths, panel.getCurrentDirectory());
+				markAccepted(event);
+				copyIntoCurrentPanel(paths);
 			}
 			return;
 		}
@@ -241,10 +265,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			return;
 		}
 		if ("copy".equals(actionEvent.getActionId())) {
-			Map<String, Object> payload = new HashMap<>();
-			payload.put("sourceProvider", this);
-			payload.put("resources", ((LocalFilePanel) panel()).getSelectedResources());
-			context.getEventBus().emit(this.id(), COPY_RESOURCES_EVENT_TYPE, payload);
+			emitCopyOrCopyIntoCurrentPanel(((LocalFilePanel) panel()).getSelectedResources());
 			return;
 		}
 		if ("move".equals(actionEvent.getActionId())) {
