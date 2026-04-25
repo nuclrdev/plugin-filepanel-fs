@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Font;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.IllegalComponentStateException;
 import java.awt.Point;
 import java.awt.event.KeyAdapter;
@@ -309,6 +311,22 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
 				invertSelection();
+			}
+		});
+		table.getInputMap(JComponent.WHEN_FOCUSED)
+				.put(KeyStroke.getKeyStroke("ctrl C"), "copyPathToClipboard");
+		table.getActionMap().put("copyPathToClipboard", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				int row = table.getSelectedRow();
+				if (row < 0) return;
+				LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
+				Path pathToCopy = entry.parent() ? currentDirectory : entry.path();
+				if (pathToCopy == null) return;
+				Toolkit.getDefaultToolkit().getSystemClipboard()
+						.setContents(new StringSelection(pathToCopy.toString()), null);
 			}
 		});
 		bindSortShortcut("ctrl F3", "sortByNameShortcut", SortMode.NAME);
