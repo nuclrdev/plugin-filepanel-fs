@@ -110,6 +110,7 @@ public class LocalFilePanel extends JPanel {
 	private Popup searchPopup;
 	private boolean altSearchActive;
 	private int rightDragAnchorRow = -1;
+	private boolean rightDragOccurred;
 	private NuclrThemeScheme themeScheme;
 
 	public LocalFilePanel(LocalFileSystemPlugin provider, Runnable helpAction) {
@@ -382,7 +383,10 @@ public class LocalFilePanel extends JPanel {
 					int row = table.rowAtPoint(e.getPoint());
 					if (row >= 0) {
 						rightDragAnchorRow = row;
-						table.setRowSelectionInterval(row, row);
+						rightDragOccurred = false;
+						if (!table.isRowSelected(row)) {
+							table.setRowSelectionInterval(row, row);
+						}
 						table.scrollRectToVisible(table.getCellRect(row, 0, true));
 					}
 				}
@@ -398,9 +402,9 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				if (SwingUtilities.isRightMouseButton(e)) {
-					boolean wasDrag = rightDragAnchorRow >= 0
-							&& table.getSelectedRowCount() > 1;
+					boolean wasDrag = rightDragOccurred;
 					rightDragAnchorRow = -1;
+					rightDragOccurred = false;
 					if (!wasDrag && table.getSelectedRowCount() > 0) {
 						showClipboardPopup(e);
 					}
@@ -413,6 +417,7 @@ public class LocalFilePanel extends JPanel {
 				if (!SwingUtilities.isRightMouseButton(e) || rightDragAnchorRow < 0) {
 					return;
 				}
+				rightDragOccurred = true;
 				int row = table.rowAtPoint(e.getPoint());
 				if (row < 0) {
 					row = e.getPoint().y < 0 ? 0 : model.getRowCount() - 1;
