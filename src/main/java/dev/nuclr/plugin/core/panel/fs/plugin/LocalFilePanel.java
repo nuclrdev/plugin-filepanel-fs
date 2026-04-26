@@ -6,7 +6,10 @@ import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.IllegalComponentStateException;
 import java.awt.Point;
 import java.awt.event.KeyAdapter;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -40,7 +44,9 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
@@ -63,7 +69,9 @@ import dev.nuclr.platform.events.NuclrEventBus;
 import dev.nuclr.platform.plugin.NuclrResourcePath;
 import dev.nuclr.plugin.core.panel.fs.LocalFileSystemPlugin;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Data
 public class LocalFilePanel extends JPanel {
 
@@ -390,7 +398,12 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				if (SwingUtilities.isRightMouseButton(e)) {
+					boolean wasDrag = rightDragAnchorRow >= 0
+							&& table.getSelectedRowCount() > 1;
 					rightDragAnchorRow = -1;
+					if (!wasDrag && table.getSelectedRowCount() > 0) {
+						showClipboardPopup(e);
+					}
 				}
 			}
 		});
@@ -1404,6 +1417,103 @@ public class LocalFilePanel extends JPanel {
 
 	private static boolean pathEquals(Path first, Path second) {
 		return first == null ? second == null : first.equals(second);
+	}
+
+	private void showClipboardPopup(MouseEvent e) {
+		int[] selectedRows = table.getSelectedRows();
+		if (selectedRows.length == 0) return;
+
+		List<LocalFilePanelModel.Entry> entries = new ArrayList<>();
+		for (int row : selectedRows) {
+			entries.add(model.getEntryAt(table.convertRowIndexToModel(row)));
+		}
+
+		List<LocalFilePanelModel.Entry> nonParent = entries.stream()
+				.filter(en -> !en.parent())
+				.collect(Collectors.toList());
+		boolean onlyParent = nonParent.isEmpty();
+		boolean singleFile = nonParent.size() == 1 && !nonParent.get(0).directory();
+
+		JPopupMenu popup = new JPopupMenu();
+
+		JMenuItem copyNames = new JMenuItem("Copy name(s)");
+		copyNames.addActionListener(ev -> {
+			List<String> names = entries.stream().map(en -> {
+				if (en.parent()) {
+					Path dir = currentDirectory;
+					return (dir != null && dir.getFileName() != null) ? dir.getFileName().toString() : null;
+				}
+				return en.name();
+			}).filter(n -> n != null).collect(Collectors.toList());
+			setClipboardText(String.join("\n", names));
+		});
+		popup.add(copyNames);
+
+		JMenuItem copyPaths = new JMenuItem("Copy path(s)");
+		copyPaths.addActionListener(ev -> {
+			List<String> paths = entries.stream().map(en -> {
+				if (en.parent()) {
+					return currentDirectory != null ? currentDirectory.toString() : null;
+				}
+				return en.path() != null ? en.path().toString() : null;
+			}).filter(p -> p != null).collect(Collectors.toList());
+			setClipboardText(String.join("\n", paths));
+		});
+		popup.add(copyPaths);
+
+		JMenuItem copyFiles = new JMenuItem("Copy file(s)");
+		copyFiles.setEnabled(!onlyParent);
+		copyFiles.addActionListener(ev -> {
+			List<java.io.File> fileList = nonParent.stream()
+					.filter(en -> en.path() != null)
+					.map(en -> en.path().toFile())
+					.collect(Collectors.toList());
+			setClipboardFileList(fileList);
+		});
+		popup.add(copyFiles);
+
+		popup.addSeparator();
+
+		JMenuItem copyContent = new JMenuItem("Copy content as text");
+		copyContent.setEnabled(singleFile);
+		copyContent.addActionListener(ev -> {
+			try {
+				String content = Files.readString(nonParent.get(0).path());
+				setClipboardText(content);
+			} catch (IOException ex) {
+				log.warn("Could not read file for clipboard: {}", ex.getMessage());
+				JOptionPane.showMessageDialog(LocalFilePanel.this,
+						"Could not read file: " + ex.getMessage(),
+						"Error", JOptionPane.ERROR_MESSAGE);
+			}
+		});
+		popup.add(copyContent);
+
+		popup.show(table, e.getX(), e.getY());
+	}
+
+	private void setClipboardText(String text) {
+		Toolkit.getDefaultToolkit().getSystemClipboard()
+				.setContents(new StringSelection(text), null);
+	}
+
+	private void setClipboardFileList(List<java.io.File> files) {
+		if (files.isEmpty()) return;
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new Transferable() {
+			@Override
+			public DataFlavor[] getTransferDataFlavors() {
+				return new DataFlavor[]{DataFlavor.javaFileListFlavor};
+			}
+			@Override
+			public boolean isDataFlavorSupported(DataFlavor flavor) {
+				return DataFlavor.javaFileListFlavor.equals(flavor);
+			}
+			@Override
+			public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+				if (!DataFlavor.javaFileListFlavor.equals(flavor)) throw new UnsupportedFlavorException(flavor);
+				return files;
+			}
+		}, null);
 	}
 
 	private void applyUiFonts() {
