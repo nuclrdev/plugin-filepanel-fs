@@ -1,6 +1,11 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.Desktop;
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -10,8 +15,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import javax.swing.JComponent;
+import javax.swing.JOptionPane;
 
 import dev.nuclr.platform.NuclrThemeScheme;
 import dev.nuclr.platform.events.NuclrEventListener;
@@ -192,6 +199,94 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		if (panel != null && panel.isShowing()) {
 			Runnable refresh = () -> panel.showDirectory(panel.getCurrentDirectory());
 			moveService.move(panel, paths, panel.getCurrentDirectory(), refresh);
+		}
+	}
+
+	private static final long TEXT_PASTE_WARN_BYTES = 1024L * 1024; // 1 MB
+
+	public void pasteFromClipboard() {
+		if (panel == null || !panel.isShowing() || panel.getCurrentDirectory() == null) return;
+
+		Transferable contents;
+		try {
+			contents = Toolkit.getDefaultToolkit().getSystemClipboard().getContents(null);
+		} catch (Exception e) {
+			log.warn("Could not access clipboard: {}", e.getMessage());
+			return;
+		}
+		if (contents == null) return;
+
+		// Priority 1: file list
+		if (contents.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+			try {
+				@SuppressWarnings("unchecked")
+				List<File> files = (List<File>) contents.getTransferData(DataFlavor.javaFileListFlavor);
+				List<NuclrResourcePath> paths = files.stream()
+						.filter(f -> f != null)
+						.map(f -> new NuclrResourcePath(f.toPath()))
+						.collect(Collectors.toList());
+				if (!paths.isEmpty()) {
+					copyIntoCurrentPanel(paths);
+				}
+			} catch (Exception e) {
+				log.warn("Could not paste files from clipboard: {}", e.getMessage());
+			}
+			return;
+		}
+
+		// Priority 2: text
+		if (contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+			try {
+				String text = (String) contents.getTransferData(DataFlavor.stringFlavor);
+				pasteTextAsFile(text);
+			} catch (Exception e) {
+				log.warn("Could not paste text from clipboard: {}", e.getMessage());
+			}
+		}
+	}
+
+	private void pasteTextAsFile(String text) {
+		long approxBytes = (long) text.length() * 2;
+		if (approxBytes > TEXT_PASTE_WARN_BYTES) {
+			int choice = JOptionPane.showConfirmDialog(
+					panel,
+					String.format("Clipboard text is approximately %.1f MB. Write to file anyway?",
+							approxBytes / (1024.0 * 1024.0)),
+					"Large Clipboard Content",
+					JOptionPane.YES_NO_OPTION,
+					JOptionPane.WARNING_MESSAGE);
+			if (choice != JOptionPane.YES_OPTION) return;
+		}
+
+		String fileName = (String) JOptionPane.showInputDialog(
+				panel,
+				"Save clipboard text as:",
+				"Paste as File",
+				JOptionPane.PLAIN_MESSAGE,
+				null, null,
+				"clipboard.txt");
+
+		if (fileName == null || fileName.isBlank()) return;
+
+		Path target = panel.getCurrentDirectory().resolve(fileName.strip());
+		if (Files.exists(target)) {
+			int choice = JOptionPane.showConfirmDialog(
+					panel,
+					"\"" + target.getFileName() + "\" already exists. Overwrite?",
+					"File Exists",
+					JOptionPane.YES_NO_OPTION,
+					JOptionPane.WARNING_MESSAGE);
+			if (choice != JOptionPane.YES_OPTION) return;
+		}
+
+		try {
+			Files.writeString(target, text);
+			panel.showDirectory(panel.getCurrentDirectory());
+		} catch (IOException e) {
+			log.error("Could not write clipboard text to file: {}", e.getMessage());
+			JOptionPane.showMessageDialog(panel,
+					"Could not create file: " + e.getMessage(),
+					"Error", JOptionPane.ERROR_MESSAGE);
 		}
 	}
 

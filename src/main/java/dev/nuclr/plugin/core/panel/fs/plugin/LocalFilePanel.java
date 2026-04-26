@@ -332,6 +332,16 @@ public class LocalFilePanel extends JPanel {
 		});
 		table.getInputMap(JComponent.WHEN_FOCUSED)
 				.put(KeyStroke.getKeyStroke("ctrl C"), "copyPathToClipboard");
+		table.getInputMap(JComponent.WHEN_FOCUSED)
+				.put(KeyStroke.getKeyStroke("ctrl V"), "pasteFromClipboard");
+		table.getActionMap().put("pasteFromClipboard", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				if (provider != null) provider.pasteFromClipboard();
+			}
+		});
 		table.getActionMap().put("copyPathToClipboard", new AbstractAction() {
 			private static final long serialVersionUID = 1L;
 
