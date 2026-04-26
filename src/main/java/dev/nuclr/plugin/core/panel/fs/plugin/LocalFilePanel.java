@@ -337,13 +337,12 @@ public class LocalFilePanel extends JPanel {
 
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
-				int row = table.getSelectedRow();
-				if (row < 0) return;
-				LocalFilePanelModel.Entry entry = model.getEntryAt(table.convertRowIndexToModel(row));
-				Path pathToCopy = entry.parent() ? currentDirectory : entry.path();
-				if (pathToCopy == null) return;
-				Toolkit.getDefaultToolkit().getSystemClipboard()
-						.setContents(new StringSelection(pathToCopy.toString()), null);
+				if (table.getSelectedRowCount() == 0) return;
+				int row = table.getSelectionModel().getLeadSelectionIndex();
+				java.awt.Rectangle rect = row >= 0
+						? table.getCellRect(row, 0, true)
+						: new java.awt.Rectangle(0, 0, 0, 0);
+				showClipboardPopup(rect.x, rect.y + rect.height);
 			}
 		});
 		bindSortShortcut("ctrl F3", "sortByNameShortcut", SortMode.NAME);
@@ -406,7 +405,7 @@ public class LocalFilePanel extends JPanel {
 					rightDragAnchorRow = -1;
 					rightDragOccurred = false;
 					if (!wasDrag && table.getSelectedRowCount() > 0) {
-						showClipboardPopup(e);
+						showClipboardPopup(e.getX(), e.getY());
 					}
 				}
 			}
@@ -1424,7 +1423,7 @@ public class LocalFilePanel extends JPanel {
 		return first == null ? second == null : first.equals(second);
 	}
 
-	private void showClipboardPopup(MouseEvent e) {
+	private void showClipboardPopup(int x, int y) {
 		int[] selectedRows = table.getSelectedRows();
 		if (selectedRows.length == 0) return;
 
@@ -1494,7 +1493,7 @@ public class LocalFilePanel extends JPanel {
 		});
 		popup.add(copyContent);
 
-		popup.show(table, e.getX(), e.getY());
+		popup.show(table, x, y);
 	}
 
 	private void setClipboardText(String text) {
