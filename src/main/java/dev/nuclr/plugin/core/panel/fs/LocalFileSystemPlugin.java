@@ -188,6 +188,13 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		}
 	}
 
+	public void moveIntoCurrentPanel(List<NuclrResourcePath> paths) {
+		if (panel != null && panel.isShowing()) {
+			Runnable refresh = () -> panel.showDirectory(panel.getCurrentDirectory());
+			moveService.move(panel, paths, panel.getCurrentDirectory(), refresh);
+		}
+	}
+
 	private void emitCopyOrCopyIntoCurrentPanel(List<NuclrResourcePath> paths) {
 		AtomicBoolean accepted = new AtomicBoolean(false);
 		Map<String, Object> payload = new HashMap<>();
@@ -234,6 +241,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			if (panel != null && panel.isShowing()) {
 				@SuppressWarnings("unchecked")
 				List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
+				markAccepted(event);
 				Runnable refreshSource = buildSourceRefresh(source);
 				moveService.move(panel, paths, panel.getCurrentDirectory(), refreshSource);
 			}

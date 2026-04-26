@@ -255,7 +255,15 @@ public class LocalFilePanel extends JPanel {
 			private static final long serialVersionUID = 1L;
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
-				eventBus.emit(LocalFilePanel.this, "fs.move", Map.of("paths", getSelectedResources()));
+				List<NuclrResourcePath> resources = getSelectedResources();
+				AtomicBoolean accepted = new AtomicBoolean(false);
+				Map<String, Object> payload = new HashMap<>();
+				payload.put("paths", resources);
+				payload.put("accepted", accepted);
+				eventBus.emit(LocalFilePanel.this, "fs.move", payload);
+				if (!accepted.get()) {
+					provider.moveIntoCurrentPanel(resources);
+				}
 			}
 		});
 
