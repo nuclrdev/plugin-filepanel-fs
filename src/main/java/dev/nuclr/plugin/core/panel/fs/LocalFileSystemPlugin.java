@@ -506,8 +506,8 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 	}
 
 	private static void addAltMenuItems(List<NuclrMenuResource> items, NuclrResourcePath source) {
-		items.add(menu("Left", "Alt+F1", "left", source));
-		items.add(menu("Right", "Alt+F2", "right", source));
+		items.add(menu("Left Panel", "Alt+F1", "left", source));
+		items.add(menu("Right Panel", "Alt+F2", "right", source));
 		items.add(menu("Find", "Alt+F7", "find", source));
 		items.add(menu("History", "Alt+F8", "history", source));
 		items.add(menu("Fullscreen", "Alt+F9", "fullscreen", source));

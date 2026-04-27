@@ -240,7 +240,21 @@ public class LocalFilePanel extends JPanel {
 
 			}
 		});
-		
+
+		// Edit
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F4"), "editFile");
+		table.getActionMap().put("editFile", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+
+				if (getSelectedResource() != null) {
+					eventBus.emit(LocalFilePanel.this, "fs.edit", Map.of("path", getSelectedResource()));
+				}
+
+			}
+		});
+
 
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F5"), "copyFiles");
 		table.getActionMap().put("copyFiles", new AbstractAction() {
