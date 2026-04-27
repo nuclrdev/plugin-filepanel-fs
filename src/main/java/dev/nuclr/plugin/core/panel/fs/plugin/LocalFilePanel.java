@@ -111,6 +111,7 @@ public class LocalFilePanel extends JPanel {
 	private boolean altSearchActive;
 	private int rightDragAnchorRow = -1;
 	private boolean rightDragOccurred;
+	private boolean pluginFocused;
 	private NuclrThemeScheme themeScheme;
 
 	public LocalFilePanel(LocalFileSystemPlugin provider, Runnable helpAction) {
@@ -542,8 +543,10 @@ public class LocalFilePanel extends JPanel {
 
 	public void setPluginFocused(boolean focused) {
 //		setBorder(focused ? activeBorder : inactiveBorder);
+		this.pluginFocused = focused;
 		if (focused) {
 			focusTable();
+			emitWindowTitle();
 		}
 		revalidate();
 		repaint();
@@ -556,6 +559,9 @@ public class LocalFilePanel extends JPanel {
 	public void showDirectory(Path path, Path selectedPath) {
 		currentDirectory = path;
 		pathLabel.setText(path == null ? " " : path.toString());
+		if (pluginFocused) {
+			emitWindowTitle();
+		}
 		hideSearchPopup();
 		long loadGeneration = directoryLoadGeneration.incrementAndGet();
 		startDirectoryLoadIndicator(path);
@@ -1518,6 +1524,12 @@ public class LocalFilePanel extends JPanel {
 		popup.add(copyContent);
 
 		popup.show(table, x, y);
+	}
+
+	private void emitWindowTitle() {
+		if (eventBus == null) return;
+		String title = currentDirectory != null ? currentDirectory.toString() : "";
+		eventBus.emit(this, "main.window.title", Map.of("title", title));
 	}
 
 	private void setClipboardText(String text) {
