@@ -1278,8 +1278,8 @@ public class LocalFilePanel extends JPanel {
 		JProgressBar progressBar = new JProgressBar();
 		progressBar.setAlignmentX(Component.CENTER_ALIGNMENT);
 		progressBar.setIndeterminate(true);
-		progressBar.setMaximumSize(new java.awt.Dimension(220, 18));
-		progressBar.setPreferredSize(new java.awt.Dimension(220, 18));
+		progressBar.setMaximumSize(new java.awt.Dimension(290, 18));
+		progressBar.setPreferredSize(new java.awt.Dimension(290, 18));
 
 		JLabel hint = new JLabel("Large or sleeping drives can take a moment.");
 		hint.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -1292,7 +1292,7 @@ public class LocalFilePanel extends JPanel {
 				BorderFactory.createLineBorder(new Color(90, 90, 90)),
 				BorderFactory.createEmptyBorder(14, 18, 14, 18)));
 		card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-		card.setMaximumSize(new java.awt.Dimension(280, 120));
+		card.setMaximumSize(new java.awt.Dimension(340, 120));
 		card.add(title);
 		card.add(Box.createVerticalStrut(10));
 		card.add(progressBar);
