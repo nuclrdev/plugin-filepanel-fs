@@ -24,11 +24,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -41,6 +44,9 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 
 final class LocalFileDeletionService {
+    private static final boolean IS_MAC = System.getProperty("os.name", "")
+            .toLowerCase(Locale.ROOT)
+            .contains("mac");
 
     /**
      * Show the confirmation dialog, then run the deletion on a virtual thread
@@ -201,27 +207,86 @@ final class LocalFileDeletionService {
             DeletionProgressDialog dialog,
             AtomicBoolean cancelled) {
 
-        if (!Desktop.isDesktopSupported()
-                || !Desktop.getDesktop().isSupported(Desktop.Action.MOVE_TO_TRASH)) {
-            showError(parent, "Safe Delete",
-                    "Moving files to the Recycle Bin is not supported on this platform.");
-            return;
-        }
-
         int total = entries.size();
         dialog.startDeleting("Moving to Trash...", total);
 
         for (int i = 0; i < total; i++) {
             if (cancelled.get()) break;
             LocalFilePanelModel.Entry entry = entries.get(i);
-            File file = entry.path().toFile();
-            if (!Desktop.getDesktop().moveToTrash(file)) {
+            if (!moveToTrash(entry.path())) {
                 showError(parent, "Safe Delete",
-                        "Could not move \"" + entry.name() + "\" to the Recycle Bin.");
+                        "Could not move \"" + entry.name() + "\" to the Trash.");
                 // Continue with remaining entries
             }
             dialog.update(entry.path(), i + 1, total);
         }
+    }
+
+    private static boolean moveToTrash(Path path) {
+        if (path == null || !Files.exists(path)) {
+            return false;
+        }
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.MOVE_TO_TRASH)) {
+                try {
+                    File file = path.toFile();
+                    if (desktop.moveToTrash(file)) {
+                        return true;
+                    }
+                } catch (Exception ignored) {
+                    // Fall through to macOS-specific fallback below.
+                }
+            }
+        }
+        if (IS_MAC) {
+            try {
+                moveToMacTrash(path);
+                return true;
+            } catch (IOException | SecurityException | InvalidPathException ignored) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static void moveToMacTrash(Path path) throws IOException {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) {
+            throw new IOException("User home directory is unavailable.");
+        }
+        Path trashDir = Path.of(home, ".Trash");
+        Files.createDirectories(trashDir);
+        Path target = uniqueTrashTarget(trashDir, path.getFileName() != null ? path.getFileName().toString() : "item");
+        try {
+            Files.move(path, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException ex) {
+            Files.move(path, target);
+        }
+    }
+
+    private static Path uniqueTrashTarget(Path trashDir, String fileName) throws IOException {
+        String safeName = (fileName == null || fileName.isBlank()) ? "item" : fileName;
+        Path candidate = trashDir.resolve(safeName);
+        if (!Files.exists(candidate)) {
+            return candidate;
+        }
+
+        String baseName = safeName;
+        String extension = "";
+        int dot = safeName.lastIndexOf('.');
+        if (dot > 0) {
+            baseName = safeName.substring(0, dot);
+            extension = safeName.substring(dot);
+        }
+
+        for (int suffix = 1; suffix < 10_000; suffix++) {
+            candidate = trashDir.resolve(baseName + " " + suffix + extension);
+            if (!Files.exists(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IOException("Could not allocate a unique Trash name for " + safeName + ".");
     }
 
     // -------------------------------------------------------------------------
@@ -236,7 +301,9 @@ final class LocalFileDeletionService {
         String operation      = permanent ? "Permanent Delete" : "Safe Delete";
         String modeDescription = permanent
                 ? "These items will be deleted permanently."
-                : "These items will be moved to the Recycle Bin as a safe delete.";
+                : IS_MAC
+                        ? "These items will be moved to the Trash as a safe delete."
+                        : "These items will be moved to the Recycle Bin as a safe delete.";
 
         StringBuilder message = new StringBuilder();
         message.append(modeDescription).append('\n').append('\n');
