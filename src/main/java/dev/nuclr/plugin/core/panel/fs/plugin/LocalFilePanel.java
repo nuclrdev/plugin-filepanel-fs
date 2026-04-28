@@ -4,8 +4,10 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.awt.Dialog;
 import java.awt.Font;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
@@ -42,7 +44,9 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -51,6 +55,7 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
@@ -78,6 +83,7 @@ public class LocalFilePanel extends JPanel {
 	private static final long serialVersionUID = 1L;
 	private static final String FILE_HILIGHT_PREFIX = "file-hilight-";
 	private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
+	private static final String GO_TO_PATH_SHORTCUT = IS_MAC ? "shift meta G" : "ctrl shift G";
 	private static final Set<String> WINDOWS_RESERVED_NAMES = Set.of(
 			"CON", "PRN", "AUX", "NUL",
 			"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
@@ -299,6 +305,16 @@ public class LocalFilePanel extends JPanel {
 			@Override
 			public void actionPerformed(java.awt.event.ActionEvent e) {
 				createNewFolder();
+			}
+		});
+		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+				.put(KeyStroke.getKeyStroke(GO_TO_PATH_SHORTCUT), "goToPath");
+		table.getActionMap().put("goToPath", new AbstractAction() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				showGoToPathDialog();
 			}
 		});
 		table.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
@@ -638,6 +654,63 @@ public class LocalFilePanel extends JPanel {
 		createNewFolder(currentDirectory);
 	}
 
+	public void showGoToPathDialog() {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog dialog = owner instanceof Dialog dialogOwner
+				? new JDialog(dialogOwner, "Go To Path", Dialog.ModalityType.APPLICATION_MODAL)
+				: new JDialog(owner, "Go To Path", Dialog.ModalityType.APPLICATION_MODAL);
+		dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+		JLabel promptLabel = new JLabel("Enter a file or folder path:");
+		JTextField pathField = new JTextField(currentDirectory != null ? currentDirectory.toString() : "", 40);
+		JLabel errorLabel = new JLabel(" ");
+		errorLabel.setForeground(UIManager.getColor("nb.errorForeground") != null
+				? UIManager.getColor("nb.errorForeground")
+				: new Color(180, 40, 40));
+
+		JPanel content = new JPanel(new BorderLayout(8, 8));
+		content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+		content.add(promptLabel, BorderLayout.NORTH);
+		content.add(pathField, BorderLayout.CENTER);
+		content.add(errorLabel, BorderLayout.SOUTH);
+
+		JButton goButton = new JButton("Go");
+		JButton cancelButton = new JButton("Cancel");
+
+		Runnable submit = () -> {
+			String validationError = openEnteredPath(pathField.getText());
+			if (validationError == null) {
+				dialog.dispose();
+				return;
+			}
+			errorLabel.setText(validationError);
+			pathField.requestFocusInWindow();
+			pathField.selectAll();
+		};
+
+		goButton.addActionListener(e -> submit.run());
+		cancelButton.addActionListener(e -> dialog.dispose());
+		pathField.addActionListener(e -> submit.run());
+
+		JPanel buttonPanel = new JPanel();
+		buttonPanel.add(goButton);
+		buttonPanel.add(cancelButton);
+
+		JPanel root = new JPanel(new BorderLayout(0, 12));
+		root.add(content, BorderLayout.CENTER);
+		root.add(buttonPanel, BorderLayout.SOUTH);
+
+		dialog.setContentPane(root);
+		dialog.getRootPane().setDefaultButton(goButton);
+		dialog.pack();
+		dialog.setLocationRelativeTo(this);
+		SwingUtilities.invokeLater(() -> {
+			pathField.requestFocusInWindow();
+			pathField.selectAll();
+		});
+		dialog.setVisible(true);
+	}
+
 	public void createNewFolder(Path contextPath) {
 		Path resolvedDirectory = resolveFolderCreationDirectory(currentDirectory, contextPath);
 		if (resolvedDirectory != null) {
@@ -694,6 +767,72 @@ public class LocalFilePanel extends JPanel {
 		} catch (IOException ex) {
 			showError("Create New Folder", "Cannot create folder: " + ex.getMessage());
 		}
+	}
+
+	private String openEnteredPath(String rawInput) {
+		Path target = resolveEnteredPath(rawInput);
+		if (target == null) {
+			return "Enter a file or folder path.";
+		}
+		if (!Files.exists(target)) {
+			return "The entered path does not exist.";
+		}
+		if (!Files.isReadable(target)) {
+			return "The entered path is not readable.";
+		}
+		if (Files.isDirectory(target)) {
+			showDirectory(target.normalize());
+			selectFirstRowAndScrollToTop();
+			return null;
+		}
+		Path parent = target.getParent();
+		if (parent == null) {
+			return "The entered file does not have a readable parent folder.";
+		}
+		if (!Files.exists(parent) || !Files.isDirectory(parent)) {
+			return "The entered file's parent folder does not exist.";
+		}
+		if (!Files.isReadable(parent)) {
+			return "The entered file's parent folder is not readable.";
+		}
+		showDirectory(parent.normalize(), target.normalize());
+		return null;
+	}
+
+	private Path resolveEnteredPath(String rawInput) {
+		if (rawInput == null) {
+			return null;
+		}
+		String trimmed = rawInput.trim();
+		if (trimmed.isEmpty()) {
+			return null;
+		}
+		String expanded = expandHomePrefix(trimmed);
+		Path inputPath = Path.of(expanded);
+		if (inputPath.isAbsolute()) {
+			return inputPath.normalize();
+		}
+		if (currentDirectory != null) {
+			return currentDirectory.resolve(inputPath).normalize();
+		}
+		return inputPath.normalize().toAbsolutePath();
+	}
+
+	private static String expandHomePrefix(String value) {
+		if (!value.startsWith("~")) {
+			return value;
+		}
+		String home = System.getProperty("user.home");
+		if (home == null || home.isBlank()) {
+			return value;
+		}
+		if ("~".equals(value)) {
+			return home;
+		}
+		if (value.startsWith("~/") || value.startsWith("~\\")) {
+			return home + value.substring(1);
+		}
+		return value;
 	}
 
 	public void deleteSelection(boolean permanent) {

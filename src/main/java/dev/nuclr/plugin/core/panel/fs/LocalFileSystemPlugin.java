@@ -34,6 +34,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
+	private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
+	private static final String GO_TO_PATH_SHORTCUT = IS_MAC ? "Shift+Cmd+G" : "Ctrl+Shift+G";
 
 	private String uuid = java.util.UUID.randomUUID().toString();
 	
@@ -410,6 +412,10 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 			((LocalFilePanel) panel()).showSortMenu();
 			return;
 		}
+		if ("goToPath".equals(actionEvent.getActionId())) {
+			((LocalFilePanel) panel()).showGoToPathDialog();
+			return;
+		}
 		if ("help".equals(actionEvent.getActionId())) {
 			openDocumentation();
 		}
@@ -481,6 +487,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		case "Sort by create" -> "sortByCreateDate";
 		case "Sort by access" -> "sortByAccessTime";
 		case "Sort menu" -> "sortMenu";
+		case "Go to path" -> "goToPath";
 		case "Create archive" -> "createArchive";
 		case "Extract archive" -> "extractArchive";
 		case "Create file" -> "createFile";
@@ -534,6 +541,7 @@ public class LocalFileSystemPlugin implements NuclrPlugin, NuclrEventListener {
 		items.add(menu("Create archive", "Shift+F1", "createArchive", source));
 		items.add(menu("Extract archive", "Shift+F2", "extractArchive", source));
 		items.add(menu("Create file", "Shift+F4", "createFile", source));
+		items.add(menu("Go to path", GO_TO_PATH_SHORTCUT, "goToPath", source));
 		items.add(menu("Delete Permanently", "Shift+F8", "deletePermanent", source));
 		items.add(menu("Selection up", "Shift+F12", "selectionUp", source));
 	}
