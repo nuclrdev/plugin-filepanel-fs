@@ -1159,6 +1159,12 @@ public class LocalFilePanel extends JPanel {
 			event.consume();
 			return;
 		}
+		if (IS_MAC) {
+			Character typedChar = searchCharFromKeyPressed(event);
+			if (typedChar != null) {
+				appendSearchCharacter(typedChar);
+			}
+		}
 		altSearchActive = true;
 		event.consume();
 	}
@@ -1167,18 +1173,49 @@ public class LocalFilePanel extends JPanel {
 		if (!isSearchModifierDown(event)) {
 			return;
 		}
+		if (IS_MAC) {
+			event.consume();
+			return;
+		}
 		char typedChar = event.getKeyChar();
 		if (Character.isISOControl(typedChar)) {
 			return;
 		}
+		appendSearchCharacter(typedChar);
+		event.consume();
+		altSearchActive = true;
+	}
+
+	private void appendSearchCharacter(char typedChar) {
 		if (searchQuery == null) {
 			searchQuery = new StringBuilder();
 		}
 		searchQuery.append(Character.toLowerCase(typedChar));
 		updateSearchPopup();
 		selectFirstMatch(searchQuery.toString());
-		event.consume();
-		altSearchActive = true;
+	}
+
+	private static Character searchCharFromKeyPressed(KeyEvent event) {
+		int keyCode = event.getKeyCode();
+		if (keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z) {
+			return Character.toLowerCase((char) ('A' + (keyCode - KeyEvent.VK_A)));
+		}
+		if (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9) {
+			return (char) ('0' + (keyCode - KeyEvent.VK_0));
+		}
+		if (keyCode == KeyEvent.VK_SPACE) {
+			return ' ';
+		}
+		if (keyCode == KeyEvent.VK_PERIOD || keyCode == KeyEvent.VK_DECIMAL) {
+			return '.';
+		}
+		if (keyCode == KeyEvent.VK_MINUS || keyCode == KeyEvent.VK_SUBTRACT) {
+			return '-';
+		}
+		if (keyCode == KeyEvent.VK_UNDERSCORE) {
+			return '_';
+		}
+		return null;
 	}
 
 	private void updateSearchPopup() {
