@@ -37,7 +37,6 @@ import dev.nuclr.plugin.core.panel.fs.copy.CopyProgressListener;
 import dev.nuclr.plugin.core.panel.fs.copy.CopyProgressSnapshot;
 import dev.nuclr.plugin.core.panel.fs.copy.CopyRequest;
 import dev.nuclr.plugin.core.panel.fs.copy.CopyWorkflow;
-import dev.nuclr.plugin.core.panel.fs.plugin.LocalFilePanel;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -129,7 +128,6 @@ public class CopyService {
                     CopyProgressSnapshot finalSnap) {
                 SwingUtilities.invokeLater(() -> {
                     dialog.close();
-                    refreshPanel(parent);
                 });
             }
 
@@ -138,24 +136,6 @@ public class CopyService {
                 log.warn("Copy error {} \u2192 {}: {}", src, tgt, ex.getMessage());
             }
         };
-    }
-
-    /**
-     * Reload the directory currently shown in {@code parent}.
-     * Works by finding the nearest {@link LocalFilePanel} ancestor.
-     */
-    private static void refreshPanel(Component parent) {
-        Component cur = parent;
-        while (cur != null) {
-            if (cur instanceof LocalFilePanel lfp) {
-                Path dir = lfp.getCurrentDirectory();
-                if (dir != null) {
-                    lfp.showDirectory(dir);
-                }
-                return;
-            }
-            cur = cur.getParent();
-        }
     }
 
     // -------------------------------------------------------------------------

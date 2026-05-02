@@ -38,7 +38,6 @@ import dev.nuclr.plugin.core.panel.fs.move.MoveProgressListener;
 import dev.nuclr.plugin.core.panel.fs.move.MoveProgressSnapshot;
 import dev.nuclr.plugin.core.panel.fs.move.MoveRequest;
 import dev.nuclr.plugin.core.panel.fs.move.MoveWorkflow;
-import dev.nuclr.plugin.core.panel.fs.plugin.LocalFilePanel;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -83,8 +82,7 @@ public class MoveService {
     public CancellationController move(
             Component parent,
             List<NuclrResourcePath> resources,
-            Path targetDir,
-            Runnable refreshSource) {
+            Path targetDir) {
 
         List<Path> sources = toPaths(resources);
         if (sources.isEmpty()) {
@@ -101,7 +99,7 @@ public class MoveService {
                 (srcs, suggested) -> showSetupDialog(parent, srcs, suggested),
                 (mode, ctrl)      -> buildConflictHandler(parent, mode, ctrl),
                 ()                -> confirmCancel(parent),
-                buildProgressListener(parent, progressDialog, refreshSource));
+                buildProgressListener(parent, progressDialog, ()->{}));
 
         CancellationController ctrl = workflow.start(sources, targetDir);
         if (ctrl == null) {
@@ -132,7 +130,6 @@ public class MoveService {
             public void onComplete(MoveOutcome outcome, MoveProgressSnapshot finalSnap) {
                 SwingUtilities.invokeLater(() -> {
                     dialog.close();
-                    refreshPanel(parent);
                     if (refreshSource != null) {
                         refreshSource.run();
                     }
@@ -144,24 +141,6 @@ public class MoveService {
                 log.warn("Move error {} \u2192 {}: {}", src, tgt, ex.getMessage());
             }
         };
-    }
-
-    /**
-     * Reload the directory currently shown in the nearest {@link LocalFilePanel}
-     * ancestor of {@code parent}.
-     */
-    private static void refreshPanel(Component parent) {
-        Component cur = parent;
-        while (cur != null) {
-            if (cur instanceof LocalFilePanel lfp) {
-                Path dir = lfp.getCurrentDirectory();
-                if (dir != null) {
-                    lfp.showDirectory(dir);
-                }
-                return;
-            }
-            cur = cur.getParent();
-        }
     }
 
     // -------------------------------------------------------------------------
