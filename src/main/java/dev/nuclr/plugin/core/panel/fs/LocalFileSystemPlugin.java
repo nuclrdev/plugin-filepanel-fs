@@ -26,21 +26,22 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 
 	private String uuid = java.util.UUID.randomUUID().toString();
 
-	private static final String MENU_ACTION_EVENT_TYPE = "dev.nuclr.plugin.core.panel.fs.menuAction";
+	private static final String EventCopy = "filepanel.copy";
+	private static final String EventMove = "filepanel.move";
+	private static final String EventMakeFolder = "filepanel.makeFolder";
+	private static final String EventDelete = "filepanel.delete";
+	private static final String EventDeletePermanently = "filepanel.deletePermanently";
+	private static final String EventGoToPath = "filepanel.goToPath";
 
-	private static final String EventMakeFolder = "dev.nuclr.plugin.core.panel.fs.makeFolder";
-	private static final String EventDelete = "dev.nuclr.plugin.core.panel.fs.delete";
-	private static final String EventDeletePermanently = "dev.nuclr.plugin.core.panel.fs.deletePermanently";
-
-	public static final String PLUGIN_ID = "dev.nuclr.plugin.core.panel.fs";
-	private static final String PLUGIN_NAME = "Local Filesystem Panel";
-	private static final String PLUGIN_VERSION = "1.0.0";
-	private static final String PLUGIN_DESCRIPTION = "Provides local filesystem roots (drives/mount points) to the file panel.";
-	private static final String PLUGIN_AUTHOR = "Nuclr Development Team";
-	private static final String PLUGIN_LICENSE = "Apache-2.0";
-	private static final String PLUGIN_WEBSITE = "https://nuclr.dev";
-	private static final String PLUGIN_PAGE_URL = "https://nuclr.dev/plugins/core/filepanel-fs.html";
-	private static final String PLUGIN_DOC_URL = PLUGIN_PAGE_URL;
+	public static final String PluginId = "dev.nuclr.plugin.core.panel.fs";
+	private static final String PluginName = "Local Filesystem Panel";
+	private static final String PluginVersion = "1.0.0";
+	private static final String PluginDescription = "Provides local filesystem roots (drives/mount points) to the file panel.";
+	private static final String PluginAuthor = "Nuclr Development Team";
+	private static final String PluginLicense = "Apache-2.0";
+	private static final String PluginWebsite = "https://nuclr.dev";
+	private static final String PluginPageUrl = "https://nuclr.dev/plugins/core/filepanel-fs.html";
+	private static final String PluginDocUrl = PluginPageUrl;
 
 	private NuclrPluginContext context;
 
@@ -53,52 +54,47 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 
 	@Override
 	public String id() {
-		return PLUGIN_ID;
+		return PluginId;
 	}
 
 	@Override
 	public String name() {
-		return PLUGIN_NAME;
+		return PluginName;
 	}
 
 	@Override
 	public String version() {
-		return PLUGIN_VERSION;
+		return PluginVersion;
 	}
 
 	@Override
 	public String description() {
-		return PLUGIN_DESCRIPTION;
+		return PluginDescription;
 	}
 
 	@Override
 	public String author() {
-		return PLUGIN_AUTHOR;
+		return PluginAuthor;
 	}
 
 	@Override
 	public String license() {
-		return PLUGIN_LICENSE;
+		return PluginLicense;
 	}
 
 	@Override
 	public String website() {
-		return PLUGIN_WEBSITE;
+		return PluginWebsite;
 	}
 
 	@Override
 	public String pageUrl() {
-		return PLUGIN_PAGE_URL;
+		return PluginPageUrl;
 	}
 
 	@Override
 	public String docUrl() {
-		return PLUGIN_DOC_URL;
-	}
-
-	@Override
-	public Developer type() {
-		return Developer.Official;
+		return PluginDocUrl;
 	}
 
 	@Override
@@ -190,7 +186,7 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 
 		log.info("Received message - Source: {}, Type: {}, Event: {}", type, event);
 
-		if ("fs.copy".equals(type)) {
+		if (EventCopy.equals(type)) {
 			@SuppressWarnings("unchecked")
 			List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
 			var component = (Component) event.get("component");
@@ -200,17 +196,13 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 			return;
 		}
 
-		if ("fs.move".equals(type)) {
+		if (EventMove.equals(type)) {
 			@SuppressWarnings("unchecked")
 			List<NuclrResourcePath> paths = (List<NuclrResourcePath>) event.get("paths");
 			markAccepted(event);
 			var component = (Component) event.get("component");
 			var targetDir = (Path) event.get("targetDir");
 			moveService.move(component, paths, targetDir);
-			return;
-		}
-
-		if (!MENU_ACTION_EVENT_TYPE.equals(type) || !isFocused()) {
 			return;
 		}
 
@@ -231,7 +223,7 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 			deleteSelection(true, selection);
 			return;
 		}
-		if ("goToPath".equals(type)) {
+		if (EventGoToPath.equals(type)) {
 			showGoToPathDialog();
 			return;
 		}
@@ -327,6 +319,23 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 	@Override
 	public String uuid() {
 		return uuid;
+	}
+
+	@Override
+	public void closeResource() {
+	}
+
+	@Override
+	public Developer developer() {
+		return Developer.Official;
+	}
+
+	@Override
+	public boolean supports(NuclrResourcePath resource) {
+		return resource != null 
+				&& resource.getPath() != null 
+				&& Files.exists(resource.getPath())
+				&& Files.isDirectory(resource.getPath());
 	}
 
 }
