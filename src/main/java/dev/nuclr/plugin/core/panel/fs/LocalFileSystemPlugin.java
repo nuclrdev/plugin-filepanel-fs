@@ -1,6 +1,7 @@
 package dev.nuclr.plugin.core.panel.fs;
 
 import java.awt.Component;
+import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -336,6 +337,23 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 				&& resource.getPath() != null 
 				&& Files.exists(resource.getPath())
 				&& Files.isDirectory(resource.getPath());
+	}
+
+	@Override
+	public List<NuclrResourcePath> getChildrenForCurrentResource() {
+		
+		var children = new ArrayList<NuclrResourcePath>();
+		
+		try {
+			Files.list(this.currentFolder.getPath()).forEach(path -> {
+				children.add(new NuclrResourcePath(path));
+			});
+		} catch (IOException e) {
+			log.error("Failed to list children for resource: {}", this.currentFolder, e);
+			return List.of();
+		}
+		
+		return children;
 	}
 
 }
