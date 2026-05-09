@@ -439,4 +439,9 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 		return String.format(java.util.Locale.ROOT, unitIndex == 0 ? "%.0f %s" : "%.1f %s", value, units[unitIndex]);
 	}
 
+	@Override
+	public NuclrPluginContext getContext() {
+		return this.context;
+	}
+
 }
