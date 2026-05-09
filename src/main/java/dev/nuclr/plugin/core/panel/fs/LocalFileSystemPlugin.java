@@ -140,6 +140,7 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 			var res = new PluginRoot();
 			res.setPath(new NuclrResourcePath(p));
 			res.setText(p.toString());
+			res.setUuid(id() + ":" + p.toString());
 			resources.add(res);
 		});
 		
@@ -362,6 +363,80 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 		}
 		
 		return children;
+	}
+
+	@Override
+	public String getCurrentLocationDisplayText() {
+		if (this.currentFolder == null || this.currentFolder.getPath() == null) {
+			return " ";
+		}
+		return this.currentFolder.getPath().toString();
+	}
+
+	@Override
+	public String getSelectionSummaryText(List<NuclrResourcePath> selectedResources) {
+		if (selectedResources == null || selectedResources.isEmpty()) {
+			return getCurrentLocationDisplayText();
+		}
+		if (selectedResources.size() == 1) {
+			NuclrResourcePath resource = selectedResources.get(0);
+			Path path = resource.getPath();
+			boolean directory = path != null && Files.isDirectory(path);
+			boolean link = isLink(path);
+			String type = link ? "Link" : (directory ? "Folder" : humanReadableSize(sizeBytes(resource, directory)));
+			String name = resource.getName() != null && !resource.getName().isBlank()
+					? resource.getName()
+					: path == null ? "" : path.getFileName() == null ? path.toString() : path.getFileName().toString();
+			return name + "  |  " + type;
+		}
+		long totalBytes = 0L;
+		int fileCount = 0;
+		int folderCount = 0;
+		for (NuclrResourcePath resource : selectedResources) {
+			Path path = resource.getPath();
+			if (path != null && Files.isDirectory(path)) {
+				folderCount++;
+			} else {
+				fileCount++;
+				totalBytes += sizeBytes(resource, false);
+			}
+		}
+		return "Bytes: " + humanReadableSize(totalBytes)
+				+ ",  files: " + fileCount
+				+ ",  folders: " + folderCount;
+	}
+
+	private static long sizeBytes(NuclrResourcePath resource, boolean directory) {
+		if (resource == null || directory) {
+			return 0L;
+		}
+		Path path = resource.getPath();
+		if (path != null) {
+			try {
+				return Files.size(path);
+			} catch (IOException ignored) {
+				// Fall back to the resource payload below.
+			}
+		}
+		return resource.getSizeBytes();
+	}
+
+	private static boolean isLink(Path path) {
+		return path != null && Files.isSymbolicLink(path);
+	}
+
+	private static String humanReadableSize(long sizeBytes) {
+		if (sizeBytes < 1024) {
+			return sizeBytes + " B";
+		}
+		double value = sizeBytes;
+		String[] units = {"KB", "MB", "GB", "TB", "PB"};
+		int unitIndex = -1;
+		while (value >= 1024 && unitIndex < units.length - 1) {
+			value /= 1024;
+			unitIndex++;
+		}
+		return String.format(java.util.Locale.ROOT, unitIndex == 0 ? "%.0f %s" : "%.1f %s", value, units[unitIndex]);
 	}
 
 }
