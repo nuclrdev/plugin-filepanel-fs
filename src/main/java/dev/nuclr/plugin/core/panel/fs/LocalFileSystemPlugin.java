@@ -130,15 +130,23 @@ public class LocalFileSystemPlugin implements FilePanelNuclrPlugin, NuclrEventLi
 	}
 
 	@Override
-	public List<PluginRoot> getPluginRoots() {
+	public PluginRoots getPluginRoots() {
+		
+		var pluginRoots = new PluginRoots();
+		
 		var resources = new ArrayList<PluginRoot>();
+		
 		FileSystems.getDefault().getRootDirectories().forEach(p -> {
 			var res = new PluginRoot();
 			res.setPath(new NuclrResourcePath(p));
 			res.setText(p.toString());
 			resources.add(res);
 		});
-		return resources;
+		
+		pluginRoots.setRoots(resources);
+		pluginRoots.setTitle("Local Filesystem");
+		
+		return pluginRoots;
 	}
 
 	@Override
