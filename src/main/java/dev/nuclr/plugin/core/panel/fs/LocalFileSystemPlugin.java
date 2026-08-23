@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.io.FileUtils;
@@ -50,6 +51,7 @@ import dev.nuclr.plugin.core.panel.fs.service.DeleteService;
 import dev.nuclr.plugin.core.panel.fs.service.DirectoryChangeMonitor;
 import dev.nuclr.plugin.core.panel.fs.service.MakeNewFolderService;
 import dev.nuclr.plugin.core.panel.fs.service.move.MoveService;
+import dev.nuclr.plugin.core.panel.fs.history.FolderHistoryService;
 import dev.nuclr.plugin.core.panel.fs.usercommands.UserCommandsService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,6 +76,9 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	private static final String PanelVisibleKey = "visible";
 	private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
 
+	/** Event type of the Alt+F12 menu item, and the action the host sends back for it. */
+	private static final String FolderHistoryAction = "folderHistory";
+
 	private static final String GO_TO_PATH_SHORTCUT = IS_MAC ? "Shift+Cmd+G" : "Ctrl+Shift+G";
 
 	protected String uuid = java.util.UUID.randomUUID().toString();
@@ -85,6 +90,9 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	private boolean focused = false;
 
 	private NuclrResource currentFolder;
+
+	/** Records every folder this panel opens, and shows the Alt+F12 list of them. */
+	private FolderHistoryService folderHistory;
 
 	private DirectoryChangeMonitor directoryMonitor;
 	private volatile boolean panelVisible = true;
@@ -147,6 +155,8 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 			this.directoryMonitor = new DirectoryChangeMonitor(this::emitWatchedFolderRefresh);
 		}
 
+		this.folderHistory = new FolderHistoryService(context, this::navigateToFolder);
+
 		var rootPath = getRootPath();
 		log.info("Default drive path: " + rootPath);
 		this.currentFolder = Helper.build(context, rootPath);
@@ -164,6 +174,11 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	public void unload() {
 		if (directoryMonitor != null) {
 			directoryMonitor.close();
+		}
+		if (folderHistory != null) {
+			// Visits are written a few seconds after the fact; on the way out there is no
+			// later, so anything still pending goes now.
+			folderHistory.flush();
 		}
 		if (context != null) {
 			context.getEventBus().unsubscribe(this);
@@ -251,6 +266,14 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 		this.currentFolder = folder;
 
+		// Remembered here rather than at the call sites, so every way of reaching a folder —
+		// Enter, "..", the drive menu, a Find result, a console's working directory — is one
+		// visit. Deferred and off this thread inside the service, so it costs the listing
+		// nothing.
+		if (folderHistory != null) {
+			folderHistory.record(path);
+		}
+
 		var entries = new NuclrResourceData();
 		var columnNames = FileNuclrResource.columnNamesFor(folder);
 		entries.setColumnNames(columnNames);
@@ -316,7 +339,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	private static void addAltMenuItems(List<NuclrMenuResource> items) {
 		items.add(menu("Find", "Alt+F7", "find"));
 		items.add(menu("Tree", "Alt+F10", "tree"));
-		items.add(menu("Folder History", "Alt+F12", "folderHistory"));
+		items.add(menu("Folders history", "Alt+F12", FolderHistoryAction));
 	}
 
 	private static void addCtrlMenuItems(List<NuclrMenuResource> items) {
@@ -671,6 +694,13 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 		
 		if ("find".equals(actionType)) {
 			openFindFileDialog(other, selectedResources);
+			return;
+		}
+
+		if (FolderHistoryAction.equals(actionType)) {
+			if (folderHistory != null) {
+				folderHistory.open();
+			}
 			return;
 		}
 
@@ -1175,6 +1205,37 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	 * {@code filepanel.path.opened} event (the {@code selectChild} payload tells the panel
 	 * which child to focus after navigating).
 	 */
+	/**
+	 * Send this panel to a folder picked from the Alt+F12 history. A remembered folder can have
+	 * been deleted or be on a drive that is no longer mounted, so it is checked first: the
+	 * history keeps the entry (the user may plug the drive back in) but the panel is not asked
+	 * to open something that is not there.
+	 *
+	 * @param folder the remembered folder, as an absolute path
+	 */
+	private void navigateToFolder(String folder) {
+
+		Path path;
+		try {
+			path = Path.of(folder);
+		} catch (RuntimeException e) {
+			log.warn("Folder history holds an unusable path '{}': {}", folder, e.getMessage());
+			return;
+		}
+
+		if (!Files.isDirectory(path)) {
+			SoundEvents.error(context);
+			JOptionPane.showMessageDialog(mainApplicationFrame(),
+					"This folder is no longer available:\n" + folder,
+					"Folders history", JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
+		var payload = new java.util.HashMap<String, Object>();
+		payload.put("resource", Helper.build(context, path));
+		context.getEventBus().emit(this, "filepanel.path.opened", payload);
+	}
+
 	private void navigateToResult(NuclrResource resource) {
 		if (resource == null || resource.getPath() == null) {
 			return;
