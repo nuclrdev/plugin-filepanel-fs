@@ -228,6 +228,8 @@ class LocalFileSystemPluginTest {
 		assertEquals("filepanel.delete", eventFor(forDir, "F8"));
 		// Alt + Shift extras.
 		assertTrue(forDir.stream().anyMatch(m -> "Alt+F7".equals(m.getFunctionKey())));
+		assertEquals("Tree", labelFor(forDir, "Alt+F10"));
+		assertEquals("tree", eventFor(forDir, "Alt+F10"));
 		assertTrue(forDir.stream().anyMatch(m -> "Shift+F8".equals(m.getFunctionKey())
 				&& "deletePermanent".equals(m.getEventType())));
 	}

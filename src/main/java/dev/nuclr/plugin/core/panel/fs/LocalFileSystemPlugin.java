@@ -52,6 +52,7 @@ import dev.nuclr.plugin.core.panel.fs.service.DirectoryChangeMonitor;
 import dev.nuclr.plugin.core.panel.fs.service.MakeNewFolderService;
 import dev.nuclr.plugin.core.panel.fs.service.move.MoveService;
 import dev.nuclr.plugin.core.panel.fs.history.FolderHistoryService;
+import dev.nuclr.plugin.core.panel.fs.tree.FileTreeService;
 import dev.nuclr.plugin.core.panel.fs.usercommands.UserCommandsService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -78,6 +79,8 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 	/** Event type of the Alt+F12 menu item, and the action the host sends back for it. */
 	private static final String FolderHistoryAction = "folderHistory";
+	/** Event type of the Alt+F10 file/folder tree. */
+	private static final String FileTreeAction = "tree";
 
 	private static final String GO_TO_PATH_SHORTCUT = IS_MAC ? "Shift+Cmd+G" : "Ctrl+Shift+G";
 
@@ -93,6 +96,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 	/** Records every folder this panel opens, and shows the Alt+F12 list of them. */
 	private FolderHistoryService folderHistory;
+	private FileTreeService fileTree;
 
 	private DirectoryChangeMonitor directoryMonitor;
 	private volatile boolean panelVisible = true;
@@ -156,6 +160,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 		}
 
 		this.folderHistory = new FolderHistoryService(context, this::navigateToFolder);
+		this.fileTree = new FileTreeService(context, this::navigateToTreePath);
 
 		var rootPath = getRootPath();
 		log.info("Default drive path: " + rootPath);
@@ -338,7 +343,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 	private static void addAltMenuItems(List<NuclrMenuResource> items) {
 		items.add(menu("Find", "Alt+F7", "find"));
-		items.add(menu("Tree", "Alt+F10", "tree"));
+		items.add(menu("Tree", "Alt+F10", FileTreeAction));
 		items.add(menu("Folders history", "Alt+F12", FolderHistoryAction));
 	}
 
@@ -700,6 +705,13 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 		if (FolderHistoryAction.equals(actionType)) {
 			if (folderHistory != null) {
 				folderHistory.open();
+			}
+			return;
+		}
+
+		if (FileTreeAction.equals(actionType)) {
+			if (fileTree != null) {
+				fileTree.open(getCurrentFolderPath());
 			}
 			return;
 		}
@@ -1233,6 +1245,27 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 		var payload = new java.util.HashMap<String, Object>();
 		payload.put("resource", Helper.build(context, path));
+		context.getEventBus().emit(this, "filepanel.path.opened", payload);
+	}
+
+	/** Navigate to a tree selection, selecting a file in its parent folder when necessary. */
+	private void navigateToTreePath(Path path) {
+		if (path == null) {
+			return;
+		}
+		Path normalized = path.toAbsolutePath().normalize();
+		boolean directory = Files.isDirectory(normalized);
+		Path folderPath = directory ? normalized : normalized.getParent();
+		if (folderPath == null || !Files.isDirectory(folderPath)) {
+			SoundEvents.error(context);
+			return;
+		}
+
+		var payload = new java.util.HashMap<String, Object>();
+		payload.put("resource", Helper.build(context, folderPath));
+		if (!directory && Files.exists(normalized)) {
+			payload.put("selectChild", Helper.build(context, normalized));
+		}
 		context.getEventBus().emit(this, "filepanel.path.opened", payload);
 	}
 
