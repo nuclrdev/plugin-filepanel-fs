@@ -150,6 +150,19 @@ final class FileTreeDialog extends JDialog {
 			public void mousePressed(MouseEvent e) {
 				revealAbandoned = true;
 			}
+
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				if (e.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(e)) {
+					return;
+				}
+				TreePath clickedPath = tree.getPathForLocation(e.getX(), e.getY());
+				Object value = clickedPath == null ? null : clickedPath.getLastPathComponent();
+				if (value instanceof PathNode node && node.path != null && !node.directory) {
+					tree.setSelectionPath(clickedPath);
+					goToSelected();
+				}
+			}
 		});
 		tree.addTreeWillExpandListener(new TreeWillExpandListener() {
 			@Override
