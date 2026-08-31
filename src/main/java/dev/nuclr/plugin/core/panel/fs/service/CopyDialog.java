@@ -153,6 +153,7 @@ final class CopyDialog {
 				KeyStroke.getKeyStroke("ESCAPE"), JComponent.WHEN_IN_FOCUSED_WINDOW);
 
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+		buttons.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 		buttons.add(copyButton);
 		buttons.add(filterButton);
 		buttons.add(cancelButton);
