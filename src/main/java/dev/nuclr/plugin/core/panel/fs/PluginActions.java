@@ -41,6 +41,9 @@ final class PluginActions {
 	/** F2 action opening the user-command list. Bound to the commander's long-standing F2 slot. */
 	static final String USER_COMMANDS = "userCommands";
 
+	/** Host-dispatched Shift+Alt+G action opening the go-to-folder prompt. */
+	static final String GO_TO_FOLDER = "filepanel.goto.folder";
+
 	private PluginActions() {
 	}
 }

@@ -51,6 +51,7 @@ import dev.nuclr.plugin.core.panel.fs.service.DeleteService;
 import dev.nuclr.plugin.core.panel.fs.service.DirectoryChangeMonitor;
 import dev.nuclr.plugin.core.panel.fs.service.MakeNewFolderService;
 import dev.nuclr.plugin.core.panel.fs.service.move.MoveService;
+import dev.nuclr.plugin.core.panel.fs.gotofolder.GoToFolderService;
 import dev.nuclr.plugin.core.panel.fs.history.FolderHistoryService;
 import dev.nuclr.plugin.core.panel.fs.tree.FileTreeService;
 import dev.nuclr.plugin.core.panel.fs.usercommands.UserCommandsService;
@@ -97,6 +98,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 	/** Records every folder this panel opens, and shows the Alt+F12 list of them. */
 	private FolderHistoryService folderHistory;
 	private FileTreeService fileTree;
+	private GoToFolderService goToFolder;
 
 	private DirectoryChangeMonitor directoryMonitor;
 	private volatile boolean panelVisible = true;
@@ -161,6 +163,7 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 
 		this.folderHistory = new FolderHistoryService(context, this::navigateToFolder);
 		this.fileTree = new FileTreeService(context, this::navigateToTreePath);
+		this.goToFolder = new GoToFolderService(context, this::navigateToTreePath);
 
 		var rootPath = getRootPath();
 		log.info("Default drive path: " + rootPath);
@@ -712,6 +715,15 @@ public class LocalFileSystemPlugin implements NuclrEventListener, FilePanelNuclr
 		if (FileTreeAction.equals(actionType)) {
 			if (fileTree != null) {
 				fileTree.open(getCurrentFolderPath());
+			}
+			return;
+		}
+
+		// Shift+Alt+G. The prompt reaches the panel through the same navigation as the tree, so a
+		// typed file path opens its folder with the cursor on the file rather than failing.
+		if (PluginActions.GO_TO_FOLDER.equals(actionType)) {
+			if (goToFolder != null) {
+				goToFolder.open(getCurrentFolderPath());
 			}
 			return;
 		}
