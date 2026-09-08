@@ -10,6 +10,7 @@ package dev.nuclr.plugin.core.panel.fs.support;
 
 import java.util.Locale;
 
+import dev.nuclr.platform.NuclrCredentialStore;
 import dev.nuclr.platform.NuclrSettings;
 import dev.nuclr.platform.NuclrThemeScheme;
 import dev.nuclr.platform.events.NuclrEventBus;
@@ -42,6 +43,11 @@ public final class FakeContext implements NuclrPluginContext {
 	@Override
 	public NuclrThemeScheme getTheme() {
 		return null;
+	}
+
+	@Override
+	public NuclrCredentialStore getCredentialStore() {
+		throw new UnsupportedOperationException("Credential store is not used by the code paths under test.");
 	}
 
 	@Override

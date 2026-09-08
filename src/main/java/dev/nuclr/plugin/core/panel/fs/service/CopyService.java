@@ -19,8 +19,11 @@ package dev.nuclr.plugin.core.panel.fs.service;
 
 import static dev.nuclr.plugin.core.panel.fs.FilePanelPayloadKeys.RESULT_REFRESH_PATHS;
 
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -68,52 +71,39 @@ public class CopyService {
 			return false;
 		}
 
-		List<Path> sources = collectSources(selectedResources, focusedResource);
-		if (sources.isEmpty()) {
-			Alerts.showError(context, DialogTitle, "There is nothing to copy.");
-			return false;
-		}
-
-		CopyOptions options = CopyDialog.show(header(sources), destination, context);
-		if (options == null) {
-			SoundEvents.cancel(context);
-			return false; // cancelled
-		}
-		if (options.getDestination() == null) {
-			options.setDestination(destination);
-		}
-		boolean destinationExisted = Files.exists(options.getDestination());
-		boolean destinationIsTarget = sources.size() == 1 && !Files.isDirectory(options.getDestination());
-
-		CopyConflictDialog conflictDialog = new CopyConflictDialog(context);
-		AtomicBoolean completed = new AtomicBoolean(false);
-
-		CopyProgressDialog.run(progress -> {
-			CopyEngine engine = new CopyEngine(options, progress, conflictDialog, (src, e) -> {
-				SoundEvents.error(context);
-				return true;
-			});
-			completed.set(engine.copy(sources));
-		}, context);
-
-		if (completed.get()) {
-			SoundEvents.processComplete(context);
-			Path refreshDirectory = destinationIsTarget ? options.getDestination().getParent() : options.getDestination();
-			var refreshDirectories = new java.util.LinkedHashSet<Path>();
-			if (refreshDirectory != null) {
-				refreshDirectories.add(refreshDirectory);
+		try (TemporarySources materialized = collectSources(selectedResources, focusedResource)) {
+			List<Path> sources = materialized.paths();
+			if (sources.isEmpty()) {
+				Alerts.showError(context, DialogTitle, "There is nothing to copy.");
+				return false;
 			}
-			// A multi-source copy may create a destination directory. Its parent must
-			// refresh as well so the newly-created folder appears immediately.
-			if (!destinationExisted && !destinationIsTarget && options.getDestination().getParent() != null) {
-				refreshDirectories.add(options.getDestination().getParent());
-			}
-			putRefreshPaths(data, refreshDirectories);
-		}
 
-		// The handling plugin publishes result.refresh.paths to every panel showing the actual
-		// destination. It does not refresh the initiating source panel because copying leaves it unchanged.
-		return completed.get();
+			CopyOptions options = CopyDialog.show(header(sources), destination, context);
+			if (options == null) {
+				SoundEvents.cancel(context);
+				return false; // cancelled
+			}
+			if (options.getDestination() == null) options.setDestination(destination);
+			boolean destinationExisted = Files.exists(options.getDestination());
+			boolean destinationIsTarget = sources.size() == 1 && !Files.isDirectory(options.getDestination());
+			CopyConflictDialog conflictDialog = new CopyConflictDialog(context);
+			AtomicBoolean completed = new AtomicBoolean(false);
+
+			CopyProgressDialog.run(progress -> {
+				CopyEngine engine = new CopyEngine(options, progress, conflictDialog, (src, e) -> { SoundEvents.error(context); return true; });
+				completed.set(engine.copy(sources));
+			}, context);
+
+			if (completed.get()) {
+				SoundEvents.processComplete(context);
+				Path refreshDirectory = destinationIsTarget ? options.getDestination().getParent() : options.getDestination();
+				var refreshDirectories = new java.util.LinkedHashSet<Path>();
+				if (refreshDirectory != null) refreshDirectories.add(refreshDirectory);
+				if (!destinationExisted && !destinationIsTarget && options.getDestination().getParent() != null) refreshDirectories.add(options.getDestination().getParent());
+				putRefreshPaths(data, refreshDirectories);
+			}
+			return completed.get();
+		}
 	}
 
 	static void putRefreshPaths(Map<String, Object> data, Iterable<Path> destinations) {
@@ -204,7 +194,7 @@ public class CopyService {
 	}
 
 	/** Resolve the resources to act on: marked selection if present, otherwise the cursor item. */
-	private static List<Path> collectSources(List<NuclrResource> selectedResources, NuclrResource focusedResource) {
+	private static TemporarySources collectSources(List<NuclrResource> selectedResources, NuclrResource focusedResource) {
 
 		List<NuclrResource> chosen = new ArrayList<>();
 		if (selectedResources != null && !selectedResources.isEmpty()) {
@@ -213,17 +203,48 @@ public class CopyService {
 			chosen.add(focusedResource);
 		}
 
-		List<Path> paths = new ArrayList<>();
+		TemporarySources sources = new TemporarySources();
 		for (NuclrResource resource : chosen) {
-			if (resource == null || resource.getPath() == null) {
-				continue;
-			}
+			if (resource == null) continue;
 			if ("..".equals(resource.getName())) {
 				continue; // never copy the parent navigation entry
 			}
-			paths.add(resource.getPath());
+			if (resource.getPath() != null) {
+				sources.paths.add(resource.getPath());
+				continue;
+			}
+			try (InputStream input = resource.openInputStream()) {
+				if (input == null) continue;
+				Path directory = sources.directory();
+				Path target = directory.resolve(exportFileName(resource.getName()));
+				Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+				sources.paths.add(target);
+			} catch (UnsupportedOperationException ignored) {
+				// A synthetic navigation/resource entry with no stream remains non-copyable.
+			} catch (Exception e) {
+				log.warn("Unable to materialize virtual copy source {}: {}", resource.getName(), e.getMessage());
+			}
 		}
-		return paths;
+		return sources;
+	}
+
+	private static String exportFileName(String name) {
+		String candidate = name == null || name.isBlank() ? "export" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
+		return candidate.lastIndexOf('.') > 0 ? candidate : candidate + ".csv";
+	}
+
+	/** Paths spooled from path-less resources, cleaned on success, cancellation, or failure. */
+	private static final class TemporarySources implements AutoCloseable {
+		private final List<Path> paths = new ArrayList<>();
+		private Path directory;
+		List<Path> paths() { return paths; }
+		Path directory() throws IOException { if (directory == null) directory = Files.createTempDirectory("nuclr-virtual-copy-"); return directory; }
+		@Override public void close() {
+			if (directory == null) return;
+			try (var files = Files.list(directory)) { files.forEach(path -> { try { Files.deleteIfExists(path); } catch (IOException e) { log.debug("Could not remove temporary virtual copy source {}", path, e); } }); }
+			catch (IOException e) { log.debug("Could not enumerate temporary virtual copy sources", e); }
+			try { Files.deleteIfExists(directory); } catch (IOException e) { log.debug("Could not remove temporary virtual copy directory {}", directory, e); }
+		}
 	}
 
 	private static String header(List<Path> sources) {
